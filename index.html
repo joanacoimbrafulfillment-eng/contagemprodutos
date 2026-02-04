@@ -297,6 +297,14 @@
       </div>
       <div>
         <label>Ações</label>
+        <div class="hint" style="margin-top:8px">
+          <label style="display:flex;gap:10px;align-items:center;cursor:pointer">
+            <input id="chkImportAdd" type="checkbox" style="width:18px;height:18px;accent-color: var(--accent)" checked/>
+            <span><b>Somar</b> ao que já está em “Nova”</span>
+          </label>
+          <div class="small">Desligue para <b>substituir</b> a “Nova” com os valores do CSV.</div>
+        </div>
+
         <div class="gridQuick" style="grid-template-columns:1fr 1fr">
           <button id="btnImportNew" class="secondary">Importar agora</button>
           <button id="btnClearNewFile" class="secondary">Limpar ficheiro</button>
@@ -382,6 +390,7 @@ const btnInit=document.getElementById('btnInit');
   const btnImportNew=document.getElementById('btnImportNew');
   const btnClearNewFile=document.getElementById('btnClearNewFile');
   const importStatus=document.getElementById('importStatus');
+  const chkImportAdd=document.getElementById('chkImportAdd');
 const sugg=document.getElementById('sugg');
 
   // ================== State ==================
@@ -765,40 +774,91 @@ prev, neu,
         return;
       }
 
-      // Escrever neu em batch (substitui)
-      setStatus(importStatus, `A importar Nova… (${items.length} linhas)`, "warn");
-      for(let i=0;i<items.length;i+=450){
-        const batch=db.batch();
-        items.slice(i,i+450).forEach(it=>{
-          batch.set(colProducts.doc(it.name), {
-            name: it.name,
-            neu: it.q,
-            lastWho: (firebase.auth().currentUser?.email || firebase.auth().currentUser?.uid || "IMPORT_NEW"),
-            lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, {merge:true});
-        });
-        await batch.commit();
-      }
+      // Escrever nova contagem
+      const addMode = !!(chkImportAdd && chkImportAdd.checked);
+      const modeLabel = addMode ? "somar" : "substituir";
+      setStatus(importStatus, `A importar Nova (${modeLabel})… (${items.length} linhas)`, "warn");
 
-      // Recalcular diff para os itens importados
-      setStatus(importStatus, "A recalcular discrepâncias…", "warn");
-      for(const it of items){
-        const ref=colProducts.doc(it.name);
-        await db.runTransaction(async (tx)=>{
-          const snap=await tx.get(ref);
-          const d=snap.exists ? snap.data() : {};
-          const prev=Number(d.prev||0);
-          const neu=Number(d.neu||0);
-          tx.set(ref, {
-            prev, neu,
-            diff: neu - prev,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, {merge:true});
-        });
-      }
+      const authUser = firebase.auth().currentUser;
+      const who = (authUser?.email || authUser?.uid || "IMPORT_NEW");
 
-      setStatus(importStatus, `✅ Importação concluída. Linhas: ${items.length}.`, "ok");
+      if(!addMode){
+        // SUBSTITUI: neu = qty do CSV
+        for(let i=0;i<items.length;i+=450){
+          const batch=db.batch();
+          items.slice(i,i+450).forEach(it=>{
+            batch.set(colProducts.doc(it.name), {
+              name: it.name,
+              neu: it.q,
+              lastWho: who,
+              lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, {merge:true});
+          });
+          await batch.commit();
+        }
+
+        // Recalcular diff para os itens importados
+        setStatus(importStatus, "A recalcular discrepâncias…", "warn");
+        for(const it of items){
+          const ref=colProducts.doc(it.name);
+          await db.runTransaction(async (tx)=>{
+            const snap=await tx.get(ref);
+            const d=snap.exists ? snap.data() : {};
+            const prev=Number(d.prev||0);
+            const neu=Number(d.neu||0);
+            tx.set(ref, {
+              prev, neu,
+              diff: neu - prev,
+              lastWho: who,
+              lastDelta: Number(it.q||0),
+              lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, {merge:true});
+
+            // Registo no log (import substitui)
+            tx.set(colLogs.doc(), {
+              ts: firebase.firestore.FieldValue.serverTimestamp(),
+              who: who,
+              product: it.name,
+              delta: Number(it.q||0),
+              source: "IMPORT_NEW_REPLACE"
+            });
+          });
+        }
+      }else{
+        // SOMA: neu = neu_atual + qty do CSV
+        for(const it of items){
+          const ref=colProducts.doc(it.name);
+          await db.runTransaction(async (tx)=>{
+            const snap=await tx.get(ref);
+            const d=snap.exists ? snap.data() : {};
+            const prev=Number(d.prev||0);
+            const neu0=Number(d.neu||0);
+            const neu1=neu0 + Number(it.q||0);
+            tx.set(ref, {
+              name: d.name || it.name,
+              prev,
+              neu: neu1,
+              diff: neu1 - prev,
+              lastWho: who,
+              lastDelta: Number(it.q||0),
+              lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, {merge:true});
+
+            // Registo no log (import soma)
+            tx.set(colLogs.doc(), {
+              ts: firebase.firestore.FieldValue.serverTimestamp(),
+              who: who,
+              product: it.name,
+              delta: Number(it.q||0),
+              source: "IMPORT_NEW_ADD"
+            });
+          });
+        }
+      }
+setStatus(importStatus, `✅ Importação concluída. Linhas: ${items.length}.`, "ok");
       // Atualizar dashboard
       if(!panelDash.classList.contains("hide")) rebuildDashboard();
       if(selectedProduct) refreshProductStats();
