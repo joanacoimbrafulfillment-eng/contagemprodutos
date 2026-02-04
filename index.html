@@ -316,6 +316,53 @@
     <div class="hint"><b>Nota:</b> Se o CSV tiver produtos que não existem, eles serão criados (com prev=0 se não existir).</div>
   </section>
 
+  <!-- LOGS -->
+  <section class="card hide" id="panelLogs">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+      <div>
+        <div style="font-weight:900;margin-bottom:4px">Registos de contagem</div>
+        <div class="small">Mostra todas as entradas (mesmo repetidas do mesmo produto). Pode carregar mais e exportar tudo em colunas (TSV).</div>
+      </div>
+      <div class="row" style="grid-template-columns:auto auto auto; gap:10px; align-items:end; margin:0">
+        <button id="btnExportLogs" class="secondary" style="min-width:180px">Exportar registos (TSV)</button>
+        <button id="btnRefreshLogs" class="secondary" style="min-width:180px">Atualizar</button>
+        <button id="btnLoadMoreLogs" class="secondary" style="min-width:180px">Carregar mais</button>
+      </div>
+    </div>
+
+    <div style="margin-top:10px" class="row">
+      <div>
+        <label>Filtro (contém…)</label>
+        <input id="logsFilter" type="text" placeholder="Ex.: sku / produto / email / import"/>
+      </div>
+      <div>
+        <label>Limite (por página)</label>
+        <input id="logsLimit" type="number" min="50" step="50" value="300"/>
+        <div class="small">Carrega os últimos N por vez (use “Carregar mais”).</div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:18%">Data</th>
+            <th style="width:26%">Utilizador</th>
+            <th style="width:44%">Produto</th>
+            <th class="mono" style="width:12%">Delta</th>
+          </tr>
+        </thead>
+        <tbody id="logsBody">
+          <tr><td colspan="4" style="color:var(--muted);padding:12px">Ligue no Admin e faça login.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="logsStatus" class="status" style="margin-top:10px">—</div>
+  </section>
+
+
+
 </div>
 
 <div class=\"sugg\" id="sugg"></div>
@@ -366,6 +413,7 @@ const search=document.getElementById('search');
   const logsStatus=document.getElementById('logsStatus');
   const btnExportLogs=document.getElementById('btnExportLogs');
   const btnRefreshLogs=document.getElementById('btnRefreshLogs');
+  const btnLoadMoreLogs=document.getElementById('btnLoadMoreLogs');
   const namespaceInput=document.getElementById('namespace');
   const btnConnect=document.getElementById('btnConnect');
   const prevFile=document.getElementById('prevFile');
@@ -441,7 +489,7 @@ const sugg=document.getElementById('sugg');
     panelImport.classList.toggle("hide", which!=="import");
     panelLogs.classList.toggle("hide", which!=="logs");
 if(which==="dash") rebuildDashboard();
-    if(which==="logs") rebuildLogs();
+    if(which==="logs"){ logsCursor=null; logsExhausted=false; fetchLogsPage({append:false}).catch(()=>{}); }
 }
   tabEntry.addEventListener("click", ()=>setTab("entry"));
   tabDash.addEventListener("click", ()=>setTab("dash"));
@@ -1047,12 +1095,57 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
 
   
   // ================== Logs ==================
+  let logsCursor = null;          // último DocumentSnapshot (para paginação)
+  let logsExhausted = false;
+
   function fmtWhen(d){
     if(!d) return "";
     try{
       const pad=(n)=>String(n).padStart(2,"0");
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     }catch(e){ return ""; }
+  }
+
+  async function fetchLogsPage({append=false}={}){
+    if(!connected){
+      setStatus(logsStatus, "Desligado.", "warn");
+      return;
+    }
+    const lim = Math.max(50, Number(logsLimit.value||300) || 300);
+    if(append && logsExhausted){
+      setStatus(logsStatus, "Já não há mais registos para carregar.", "ok");
+      return;
+    }
+
+    let q = colLogs.orderBy("ts","desc").limit(lim);
+    if(append && logsCursor) q = q.startAfter(logsCursor);
+
+    setStatus(logsStatus, append ? "A carregar mais…" : "A carregar…", "warn");
+    const snap = await q.get();
+    if(snap.empty){
+      logsExhausted = true;
+      setStatus(logsStatus, "Sem mais registos.", "ok");
+      return;
+    }
+
+    const page=[];
+    let lastDoc=null;
+    snap.forEach(doc=>{
+      const d=doc.data()||{};
+      let t=null; try{ t = d.ts && d.ts.toDate ? d.ts.toDate() : null; }catch(e){}
+      page.push({ id: doc.id, when: t, who: d.who||"", product: d.product||"", delta: Number(d.delta||0), source: d.source||"" });
+      lastDoc = doc;
+    });
+    logsCursor = lastDoc;
+    if(page.length < lim) logsExhausted = true;
+
+    if(!append){
+      lastLogs = page;
+    }else{
+      const existing = new Set((lastLogs||[]).map(x=>x.id));
+      for(const r of page){ if(!existing.has(r.id)) lastLogs.push(r); }
+    }
+    rebuildLogs();
   }
 
   function rebuildLogs(){
@@ -1062,9 +1155,11 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
       return;
     }
     const filt=normalize(logsFilter.value).toLowerCase();
-    const rows = lastLogs.filter(r=>{
+    const rows = (lastLogs||[]).filter(r=>{
       if(!filt) return true;
-      return (r.product||"").toLowerCase().includes(filt) || (r.who||"").toLowerCase().includes(filt);
+      return (r.product||"").toLowerCase().includes(filt) ||
+             (r.who||"").toLowerCase().includes(filt) ||
+             (r.source||"").toLowerCase().includes(filt);
     });
 
     if(!rows.length){
@@ -1073,6 +1168,7 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
       return;
     }
 
+    // Mostra todos os registos carregados, mesmo repetidos do mesmo produto
     logsBody.innerHTML = rows.map(r=>{
       const d = fmtWhen(r.when);
       const who = escapeHtml(r.who||"");
@@ -1085,27 +1181,63 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
         <td class="mono">${delta}</td>
       </tr>`;
     }).join("");
-    setStatus(logsStatus, `Atualizado. Registos: ${rows.length}`, "ok");
+    setStatus(logsStatus, `Atualizado. Visíveis: ${rows.length}${logsExhausted ? " (todos carregados)" : ""}`, "ok");
   }
 
   if(logsFilter) logsFilter.addEventListener("input", ()=>rebuildLogs());
   if(btnRefreshLogs) btnRefreshLogs.addEventListener("click", async ()=>{
+    logsCursor=null; logsExhausted=false;
     if(!await connectFirebase()) return;
-    rebuildLogs();
+    await fetchLogsPage({append:false});
+  });
+  if(btnLoadMoreLogs) btnLoadMoreLogs.addEventListener("click", async ()=>{
+    if(!await connectFirebase()) return;
+    await fetchLogsPage({append:true});
   });
 
-  if(btnExportLogs) btnExportLogs.addEventListener("click", ()=>{
+  // Exportar TODOS os registos (paginado) em TSV
+  async function exportAllLogsTSV(){
+    if(!await connectFirebase()){
+      setStatus(logsStatus, "Precisa de estar ligado e autenticado.", "warn");
+      return;
+    }
+    setStatus(logsStatus, "A exportar todos os registos…", "warn");
     const sep="\t";
-    const header=["Data","Utilizador","Produto","Delta"].join(sep)+"\n";
-    const rows = lastLogs.slice().reverse().map(r=>{
-      return [fmtWhen(r.when), r.who||"", r.product||"", r.delta||0].join(sep);
-    }).join("\n") + "\n";
-    const stamp=new Date().toISOString().slice(0,10);
-    downloadText(`registos_${stamp}.tsv`, header+rows);
-    setStatus(logsStatus, "Exportado (TSV).", "ok");
-  });
+    const header=["Data","Utilizador","Produto","Delta","Source","DocId"].join(sep)+"\n";
 
-// ================== Exports ==================
+    const parts=[];
+    let last=null;
+    const pageSize=1000;
+    let fetched=0;
+
+    while(true){
+      let q=colLogs.orderBy("ts","desc").limit(pageSize);
+      if(last) q=q.startAfter(last);
+      const snap=await q.get();
+      if(snap.empty) break;
+
+      const lines=[];
+      let lastDoc=null;
+      snap.forEach(doc=>{
+        const d=doc.data()||{};
+        let t=null; try{ t=d.ts && d.ts.toDate ? d.ts.toDate() : null; }catch(e){}
+        lines.push([fmtWhen(t), d.who||"", d.product||"", Number(d.delta||0), d.source||"", doc.id].join(sep));
+        lastDoc=doc;
+      });
+      parts.push(lines.join("\n"));
+      fetched += snap.size;
+      last = lastDoc;
+      if(snap.size < pageSize) break;
+      if(fetched > 200000) break; // safety cap
+    }
+
+    const stamp=new Date().toISOString().slice(0,10);
+    downloadText(`registos_${stamp}.tsv`, header + parts.filter(Boolean).join("\n") + "\n");
+    setStatus(logsStatus, `Exportado (TSV). Linhas: ${fetched}.`, "ok");
+  }
+
+  if(btnExportLogs) btnExportLogs.addEventListener("click", exportAllLogsTSV);
+// ================== Exports// ================== Exports ==================
   btnExportDiff.addEventListener("click", ()=> {
     const rows = lastProducts.map(x=> {
       const diff=(x.neu||0)-(x.prev||0);
