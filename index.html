@@ -89,12 +89,40 @@
       .sugg{max-height:40vh}
     }
 
+
+    
+    
+    /* CONTRASTE EXTREMO + prioridade alta (pesquisa rápida) */
+    .sugg{
+      background:rgba(0,0,0,.92) !important;
+      border-color:rgba(255,255,255,.55) !important;
+    }
+    .sugg > .item{
+      background:#FFFFFF !important;
+      color:#000000 !important;
+      font-weight:800 !important;
+      padding:12px 12px !important;
+      border:2px solid rgba(0,0,0,.20) !important;
+      border-radius:12px !important;
+      margin:8px 10px !important;
+      box-shadow:0 6px 18px rgba(0,0,0,.35) !important;
+    }
+    .sugg > .item:hover{
+      background:#F5F5F5 !important;
+    }
+    .sugg > .item.active{
+      background:#FFF3CD !important;         /* amarelo */
+      border-color:#F59E0B !important;
+      outline:3px solid rgba(245,158,11,.35) !important;
+    }
+
 </style>
 
   <!-- Firebase (compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.
+    js"></script>
 </head>
 <body class="locked">
 
