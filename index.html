@@ -92,31 +92,7 @@
 
     
     
-    /* CONTRASTE EXTREMO + prioridade alta (pesquisa rápida) */
-    .sugg{
-      background:rgba(0,0,0,.92) !important;
-      border-color:rgba(255,255,255,.55) !important;
-    }
-    .sugg > .item{
-      background:#FFFFFF !important;
-      color:#000000 !important;
-      font-weight:800 !important;
-      padding:12px 12px !important;
-      border:2px solid rgba(0,0,0,.20) !important;
-      border-radius:12px !important;
-      margin:8px 10px !important;
-      box-shadow:0 6px 18px rgba(0,0,0,.35) !important;
-    }
-    .sugg > .item:hover{
-      background:#F5F5F5 !important;
-    }
-    .sugg > .item.active{
-      background:#FFF3CD !important;         /* amarelo */
-      border-color:#F59E0B !important;
-      outline:3px solid rgba(245,158,11,.35) !important;
-    }
-
-</style>
+    </style>
 
   <!-- Firebase (compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -138,7 +114,42 @@
       </div>
       <div>
         <label>Password</label>
-        <input id="gatePass" type="password" autocomplete="current-password" placeholder="••••••••"/>
+        <inp
+    /* CONTRASTE EXTREMO (pesquisa rápida) */
+    .sugg{
+      background:rgba(0,0,0,.94) !important;
+      border:2px solid rgba(255,255,255,.65) !important;
+    }
+    .sugg > .item{
+      background:#FFFFFF !important;
+      color:#000000 !important;
+      font-weight:900 !important;
+      font-size:18px !important;
+      line-height:1.15 !important;
+      padding:14px 14px !important;
+      border:3px solid rgba(0,0,0,.28) !important;
+      border-radius:14px !important;
+      margin:10px 12px !important;
+      box-shadow:0 10px 26px rgba(0,0,0,.45) !important;
+      text-shadow:none !important;
+    }
+    .sugg > .item .small, .sugg > .item .muted{
+      color:rgba(0,0,0,.70) !important;
+      font-weight:700 !important;
+    }
+    .sugg > .item:hover{
+      background:#F3F4F6 !important;
+    }
+    .sugg > .item.active{
+      background:#FFFBEB !important;         /* amarelo bem claro */
+      border-color:#B45309 !important;       /* laranja escuro */
+      outline:4px solid rgba(245,158,11,.55) !important;
+    }
+    @media (max-width:700px){
+      .sugg > .item{font-size:19px !important; padding:16px 14px !important;}
+    }
+
+ut id="gatePass" type="password" autocomplete="current-password" placeholder="••••••••"/>
       </div>
     </div>
 
@@ -639,7 +650,7 @@ if(which==="dash") rebuildDashboard();
   function pickProduct(p){
     selectedProduct=p;
     selected.value=p;
-    search.value="";
+    search.value = p;
     closeSugg();
     localStorage.setItem(SELKEY, p);
     qty.focus();
@@ -1536,6 +1547,7 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
 
   async function gateSignIn(){
     try{
+      initFirebaseCore();
       setStatus(gateStatus, "A entrar…", "warn");
       const auth = firebase.auth();
       const email = (gateEmail.value||"").trim();
@@ -1556,10 +1568,11 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
     }
   }
 
-  gateLogin.addEventListener("click", ()=>gateSignIn());
-  gatePass.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); gateSignIn(); }});
+  if(gateLogin) gateLogin.addEventListener("click", ()=>gateSignIn());
+if(gatePass) gatePass.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); gateSignIn(); }});
 // Sempre que o estado de autenticação muda, desbloqueia/bloqueia
   function setupAuthListener(){
+    initFirebaseCore();
     const auth = firebase.auth();
     auth.onAuthStateChanged(async (user)=>{
       if(user){
