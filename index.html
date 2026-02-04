@@ -294,7 +294,8 @@
   // ================== Firebase config (já preenchida) ==================
   const FIREBASE_CONFIG = {"apiKey": "AIzaSyCvI_QHzrSTr4VRdShQUNOdTkOLyKlQCO0", "authDomain": "contagem-de-inventario.firebaseapp.com", "projectId": "contagem-de-inventario", "storageBucket": "contagem-de-inventario.firebasestorage.app", "messagingSenderId": "756938513058", "appId": "1:756938513058:web:b25e4ac4033934db9cd5fb"};
 
-  // ================== Storage keys ==================  const CFGKEY="inv_cfg_v3";      // {namespace}
+  // ================== Storage keys ==================
+  const CFGKEY="inv_cfg_v3";      // {namespace}
   const QKEY="inv_pending_v3";    // queue offline
   const SELKEY="inv_selected_v3"; // last selected
 
@@ -928,7 +929,8 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
     try{ gateEmail.value = localStorage.getItem("inv_auth_email_v1") || ""; }catch(e){}
 // email lembrado (para facilitar login)
     if(authEmail) authEmail.value = loadRememberedEmail();
-const cfg=loadCfg();
+
+    const cfg=loadCfg();
     namespaceInput.value = cfg.namespace || "inv_2026_02";
 
     saveQueue(loadQueue());
