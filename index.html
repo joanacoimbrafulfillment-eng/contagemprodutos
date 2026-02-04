@@ -47,7 +47,7 @@
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
     .diffpos{color:var(--ok);font-weight:900} .diffneg{color:var(--bad);font-weight:900}
     .small{color:var(--muted);font-size:12px;line-height:1.35;margin-top:8px} .hide{display:none!important}
-    .sugg{position:absolute;z-index:60;background:rgba(2,6,23,.96);border:1px solid rgba(148,163,184,.22);border-radius:16px;box-shadow:0 18px 46px rgba(0,0,0,.45);
+    .sugg{position:fixed;z-index:60;background:rgba(2,6,23,.96);border:1px solid rgba(148,163,184,.22);border-radius:16px;box-shadow:0 18px 46px rgba(0,0,0,.45);max-height:46vh;overflow:auto;-webkit-overflow-scrolling:touch;
       padding:6px;max-height:320px;overflow:auto;display:none}
     .sugg .item{padding:10px 10px;border-radius:14px;cursor:pointer;color:rgba(255,255,255,.92);font-size:14px}
     .sugg .item.active{background:rgba(56,189,248,.20)}
@@ -80,7 +80,16 @@
     /* (Opcional) esconder login duplicado no Admin */
     #authEmail, #authPass, #btnLogin, #btnRegister, #authStatus { display:none !important; }
 
-  </style>
+  
+    .entryTop{position:sticky;top:0;z-index:20;background:rgba(15,23,42,.92);backdrop-filter: blur(10px);padding:10px 10px 6px;border-radius:16px;border:1px solid rgba(148,163,184,.12)}
+    @media (max-width:700px){
+      .entryTop{top:6px}
+      #panelEntry .row{grid-template-columns:1fr}
+      #panelEntry input{font-size:16px} /* evita zoom iOS */
+      .sugg{max-height:40vh}
+    }
+
+</style>
 
   <!-- Firebase (compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -133,7 +142,7 @@
 <div class="wrap">
   <!-- ENTRY -->
   <section class="card" id="panelEntry">
-    <div class="row">
+    <div class="row entryTop">
       <div>
         <label>Utilizador</label>
         <input id="whoDisplay" type="text" readonly placeholder="—"/>
@@ -344,7 +353,7 @@
         <div class="small">Mostra todas as entradas (mesmo repetidas do mesmo produto). Pode carregar mais e exportar tudo em colunas (TSV).</div>
       </div>
       <div class="row" style="grid-template-columns:auto auto auto; gap:10px; align-items:end; margin:0">
-        <button id="btnExportLogs" class="secondary" style="min-width:180px">Exportar registos (TSV)</button>
+        <button id="btnExportLogs" class="secondary" style="min-width:180px">Exportar registos (CSV)</button>
         <button id="btnRefreshLogs" class="secondary" style="min-width:180px">Atualizar</button>
         <button id="btnLoadMoreLogs" class="secondary" style="min-width:180px">Carregar mais</button>
       </div>
@@ -513,12 +522,24 @@ const sugg=document.getElementById('sugg');
   function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QKEY)||"[]"); }catch(e){ return []; } }
 
   function downloadText(filename,text){
-    const blob=new Blob([text],{type:"text/tab-separated-values;charset=utf-8"});
+    const blob=new Blob([text],{type:"text/csv;charset=utf-8"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
     a.href=url; a.download=filename;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),2500);
+  }
+
+  function csvEscape(v){
+    const s = (v===null || v===undefined) ? "" : String(v);
+    // Escape quotes by doubling; wrap in quotes if contains comma, quote, or newline
+    if(/[",\n\r]/.test(s)){
+      return '"' + s.replace(/"/g,'""') + '"';
+    }
+    return s;
+  }
+  function csvRow(arr){
+    return arr.map(csvEscape).join(",") + "\n";
   }
 
   // ================== Tabs ==================
@@ -542,7 +563,34 @@ if(which==="dash") rebuildDashboard();
   tabImport.addEventListener("click", ()=>setTab("import"));
   tabLogs.addEventListener("click", ()=>setTab("logs"));
 // ================== Suggestions ==================
-  function positionSugg(){ const r=search.getBoundingClientRect(); sugg.style.left=(r.left+window.scrollX)+"px"; sugg.style.top=(r.bottom+window.scrollY+8)+"px"; sugg.style.width=r.width+"px"; }
+  function positionSugg(){
+    const r=search.getBoundingClientRect();
+    const margin=8;
+    const desired=320;
+    const maxW = Math.min(r.width, window.innerWidth - margin*2);
+    const left = Math.min(Math.max(margin, r.left), window.innerWidth - maxW - margin);
+
+    // espaço disponível
+    const spaceBelow = window.innerHeight - r.bottom - margin;
+    const spaceAbove = r.top - margin;
+
+    // escolher lado
+    let top;
+    let maxH;
+    if(spaceBelow >= 160 || spaceBelow >= spaceAbove){
+      top = r.bottom + margin;
+      maxH = Math.max(120, Math.min(desired, spaceBelow));
+    }else{
+      maxH = Math.max(120, Math.min(desired, spaceAbove));
+      top = Math.max(margin, r.top - margin - maxH);
+    }
+
+    sugg.style.position="fixed";
+    sugg.style.left = left + "px";
+    sugg.style.top  = top + "px";
+    sugg.style.width = maxW + "px";
+    sugg.style.maxHeight = maxH + "px";
+  }
   function closeSugg(){ sugg.style.display="none"; activeIndex=-1; }
   function openSugg(){ if(!results.length){closeSugg();return;} positionSugg(); sugg.style.display="block"; }
   function renderSugg(){
@@ -1375,14 +1423,13 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
   });
 
   // Exportar TODOS os registos (paginado) em TSV
-  async function exportAllLogsTSV(){
+  async function exportAllLogsCSV(){
     if(!await connectFirebase()){
       setStatus(logsStatus, "Precisa de estar ligado e autenticado.", "warn");
       return;
     }
     setStatus(logsStatus, "A exportar todos os registos…", "warn");
-    const sep="\t";
-    const header=["Data","Utilizador","Produto","Delta","Source","DocId"].join(sep)+"\n";
+    const header = csvRow(["Data","Utilizador","Produto","Delta","Source","DocId"]);
 
     const parts=[];
     let last=null;
@@ -1400,10 +1447,10 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
       snap.forEach(doc=>{
         const d=doc.data()||{};
         let t=null; try{ t=d.ts && d.ts.toDate ? d.ts.toDate() : null; }catch(e){}
-        lines.push([fmtWhen(t), d.who||"", d.product||"", Number(d.delta||0), d.source||"", doc.id].join(sep));
+        lines.push(csvRow([fmtWhen(t), d.who||"", d.product||"", Number(d.delta||0), d.source||"", doc.id]));
         lastDoc=doc;
       });
-      parts.push(lines.join("\n"));
+      parts.push(lines.join(""));
       fetched += snap.size;
       last = lastDoc;
       if(snap.size < pageSize) break;
@@ -1411,11 +1458,11 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
     }
 
     const stamp=new Date().toISOString().slice(0,10);
-    downloadText(`registos_${stamp}.tsv`, header + parts.filter(Boolean).join("\n") + "\n");
-    setStatus(logsStatus, `Exportado (TSV). Linhas: ${fetched}.`, "ok");
+    downloadText(`registos_${stamp}.csv`, header + parts.join("") );
+    setStatus(logsStatus, `Exportado (CSV). Linhas: ${fetched}.`, "ok");
   }
 
-  if(btnExportLogs) btnExportLogs.addEventListener("click", exportAllLogsTSV);
+  if(btnExportLogs) btnExportLogs.addEventListener("click", exportAllLogsCSV);
 // ================== Exports// ================== Exports ==================
   btnExportDiff.addEventListener("click", ()=> {
     const rows = lastProducts.map(x=> {
@@ -1423,29 +1470,25 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
       return { product:x.name, prev:x.prev||0, neu:x.neu||0, diff, lastWho: (x.lastWho||"") };
     }).filter(r=>r.diff!==0);
 
-    const sep="\t";
-    const header=["Produto","Anterior","Nova","Dif","UltimoPor"].join(sep)+"\n";
-    const body = rows.map(r=> {
-      return [r.product, r.prev, r.neu, r.diff, r.lastWho].join(sep);
-    }).join("\n") + "\n";
+    const header = csvRow(["Produto","Anterior","Nova","Dif","UltimoPor"]); 
+    const body = rows.map(r=> csvRow([r.product, r.prev, r.neu, r.diff, r.lastWho])).join("");
     const stamp=new Date().toISOString().slice(0,10);
-    downloadText(`discrepancias_${stamp}.tsv`, header+body);
-    setStatus(dashStatus, "Exportado (TSV).", "ok");
+    downloadText(`discrepancias_${stamp}.csv`, header+body);
+    setStatus(dashStatus, "Exportado (CSV).", "ok");
   });
   btnExportNew.addEventListener("click", ()=> {
     const map = new Map(lastProducts.map(x=>[x.id,x]));
-    const sep="\t";
-    const header=["Produto","QtyNova","UltimoPor"].join(sep)+"\n";
+    const header = csvRow(["Produto","QtyNova","UltimoPor"]); 
     const lines=[];
     for(const p of PRODUCTS){
       const d=map.get(p);
       const q=d ? (d.neu||0) : 0;
       const who=d ? (d.lastWho||"") : "";
-      lines.push([p, q, who].join(sep));
+      lines.push(csvRow([p, q, who]));
     }
     const stamp=new Date().toISOString().slice(0,10);
-    downloadText(`contagem_nova_${stamp}.tsv`, header+lines.join("\n")+"\n");
-    setStatus(dashStatus, "Exportado (TSV).", "ok");
+    downloadText(`contagem_nova_${stamp}.csv`, header + lines.join("") );
+    setStatus(dashStatus, "Exportado (CSV).", "ok");
   });
   // ================== Gate: login obrigatório antes de usar ==================
   function showGate(msg="", kind="warn"){
