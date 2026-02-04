@@ -123,7 +123,9 @@
   <div class="tabs">
     <div class="tab active" id="tabEntry">Entrada (mobile)</div>
     <div class="tab" id="tabDash">Dashboard (PC)</div>
-    <div class="tab" id="tabAdmin">Admin</div>
+    <div class="tab" id="tabImport">Importar nova</div>
+    <div class="tab" id="tabLogs">Registos</div>
+  <div class="tab" id="tabAdmin">Admin</div>
   </div>
 </header>
 
@@ -165,9 +167,7 @@
     </div>
 
     <div style="margin-top:10px">
-      <span class="pill">Anterior: <strong id="prevQty">—</strong></span>
       <span class="pill">Nova (total): <strong id="newQty">—</strong></span>
-      <span class="pill">Dif: <strong id="diffQty">—</strong></span>
       <span class="pill">Pendentes offline: <strong id="pendingCount">0</strong></span>
     </div>
 
@@ -283,9 +283,34 @@
       3) Regras: permitir read/write só a utilizadores autenticados
     </div>
   </section>
+
+  <!-- IMPORT NEW COUNT -->
+  <section class="card hide" id="panelImport">
+    <div style="font-weight:900;margin-bottom:6px">Importar contagem nova (CSV)</div>
+    <div class="small">Faz upload de um CSV com <b>Produto</b> na coluna A e <b>Qty</b> na coluna B. Vai gravar para <b>Nova</b> (neu) e recalcular discrepâncias (dif = neu - prev).</div>
+
+    <div style="margin-top:10px" class="row">
+      <div>
+        <label>Upload contagem nova (CSV: Produto, Qty)</label>
+        <input id="newFile" type="file" accept=".csv,.txt"/>
+        <div class="small">Isto <b>substitui</b> a “Nova” para os produtos presentes no ficheiro.</div>
+      </div>
+      <div>
+        <label>Ações</label>
+        <div class="gridQuick" style="grid-template-columns:1fr 1fr">
+          <button id="btnImportNew" class="secondary">Importar agora</button>
+          <button id="btnClearNewFile" class="secondary">Limpar ficheiro</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="importStatus" class="status" style="margin-top:10px">Ligue e autentique-se primeiro. Depois escolha o CSV e clique “Importar agora”.</div>
+    <div class="hint"><b>Nota:</b> Se o CSV tiver produtos que não existem, eles serão criados (com prev=0 se não existir).</div>
+  </section>
+
 </div>
 
-<div class="sugg" id="sugg"></div>
+<div class=\"sugg\" id="sugg"></div>
 
 <script>
   // ================== Produtos ==================
@@ -305,18 +330,17 @@
   const tabAdmin=document.getElementById('tabAdmin');
   const panelEntry=document.getElementById('panelEntry');
   const panelDash=document.getElementById('panelDash');
-  const panelAdmin=document.getElementById('panelAdmin');  const search=document.getElementById('search');
+  const panelAdmin=document.getElementById('panelAdmin');    const tabImport=document.getElementById('tabImport');
+  const panelImport=document.getElementById('panelImport');
+  const tabLogs=document.getElementById('tabLogs');
+  const panelLogs=document.getElementById('panelLogs');
+const search=document.getElementById('search');
   const selected=document.getElementById('selected');
   const whoDisplay=document.getElementById('whoDisplay');
   const qty=document.getElementById('qty');
   const btnAddCustom=document.getElementById('btnAddCustom');
   const btnSync=document.getElementById('btnSync');
-  const btnClearSel=document.getElementById('btnClearSel');
-
-  const prevQty=document.getElementById('prevQty');
-  const newQty=document.getElementById('newQty');
-  const diffQty=document.getElementById('diffQty');
-  const pendingCount=document.getElementById('pendingCount');
+  const btnClearSel=document.getElementById('btnClearSel');  const newQty=document.getElementById('newQty');  const pendingCount=document.getElementById('pendingCount');
   const status=document.getElementById('status');
 
   const dashFilter=document.getElementById('dashFilter');
@@ -326,6 +350,14 @@
   const btnExportDiff=document.getElementById('btnExportDiff');
   const btnExportNew=document.getElementById('btnExportNew');
 
+
+  // Logs
+  const logsFilter=document.getElementById('logsFilter');
+  const logsLimit=document.getElementById('logsLimit');
+  const logsBody=document.getElementById('logsBody');
+  const logsStatus=document.getElementById('logsStatus');
+  const btnExportLogs=document.getElementById('btnExportLogs');
+  const btnRefreshLogs=document.getElementById('btnRefreshLogs');
   const namespaceInput=document.getElementById('namespace');
   const btnConnect=document.getElementById('btnConnect');
   const prevFile=document.getElementById('prevFile');
@@ -344,7 +376,13 @@ const btnInit=document.getElementById('btnInit');
   const btnResetNew=document.getElementById('btnResetNew');
   const adminStatus=document.getElementById('adminStatus');
 
-  const sugg=document.getElementById('sugg');
+  
+  // Import nova contagem
+  const newFile=document.getElementById('newFile');
+  const btnImportNew=document.getElementById('btnImportNew');
+  const btnClearNewFile=document.getElementById('btnClearNewFile');
+  const importStatus=document.getElementById('importStatus');
+const sugg=document.getElementById('sugg');
 
   // ================== State ==================
   let selectedProduct=null;
@@ -357,9 +395,10 @@ const btnInit=document.getElementById('btnInit');
   let colProducts=null;
   let colLogs=null;
   let unsubProducts=null;
-
+  let unsubLogs=null;
   // Cache for dashboard/stats
-  let lastProducts=[]; // array of {id, name, prev, neu}
+  let lastProducts=[];
+  let lastLogs=[]; // array of {ts, who, product, delta} // array of {id, name, prev, neu}
 
   // ================== Helpers ==================
   function normalize(s){ return (s??"").toString().replace(/\s+/g," ").trim(); }
@@ -372,7 +411,7 @@ const btnInit=document.getElementById('btnInit');
   function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QKEY)||"[]"); }catch(e){ return []; } }
 
   function downloadText(filename,text){
-    const blob=new Blob([text],{type:"text/csv;charset=utf-8"});
+    const blob=new Blob([text],{type:"text/tab-separated-values;charset=utf-8"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
     a.href=url; a.download=filename;
@@ -385,16 +424,22 @@ const btnInit=document.getElementById('btnInit');
     tabEntry.classList.toggle("active", which==="entry");
     tabDash.classList.toggle("active", which==="dash");
     tabAdmin.classList.toggle("active", which==="admin");
+    tabImport.classList.toggle("active", which==="import");
+    tabLogs.classList.toggle("active", which==="logs");
     panelEntry.classList.toggle("hide", which!=="entry");
     panelDash.classList.toggle("hide", which!=="dash");
     panelAdmin.classList.toggle("hide", which!=="admin");
-    if(which==="dash") rebuildDashboard();
-  }
+    panelImport.classList.toggle("hide", which!=="import");
+    panelLogs.classList.toggle("hide", which!=="logs");
+if(which==="dash") rebuildDashboard();
+    if(which==="logs") rebuildLogs();
+}
   tabEntry.addEventListener("click", ()=>setTab("entry"));
   tabDash.addEventListener("click", ()=>setTab("dash"));
   tabAdmin.addEventListener("click", ()=>setTab("admin"));
-
-  // ================== Suggestions ==================
+  tabImport.addEventListener("click", ()=>setTab("import"));
+  tabLogs.addEventListener("click", ()=>setTab("logs"));
+// ================== Suggestions ==================
   function positionSugg(){ const r=search.getBoundingClientRect(); sugg.style.left=(r.left+window.scrollX)+"px"; sugg.style.top=(r.bottom+window.scrollY+8)+"px"; sugg.style.width=r.width+"px"; }
   function closeSugg(){ sugg.style.display="none"; activeIndex=-1; }
   function openSugg(){ if(!results.length){closeSugg();return;} positionSugg(); sugg.style.display="block"; }
@@ -512,7 +557,7 @@ const btnInit=document.getElementById('btnInit');
         const arr=[];
         snap.forEach(doc=>{
           const d=doc.data()||{};
-          arr.push({ id: doc.id, name: d.name||doc.id, prev: Number(d.prev||0), neu: Number(d.neu||0) });
+          arr.push({ id: doc.id, name: d.name||doc.id, prev: Number(d.prev||0), neu: Number(d.neu||0), lastWho: d.lastWho||"" });
         });
         lastProducts=arr;
         if(!panelDash.classList.contains("hide")) rebuildDashboard();
@@ -520,6 +565,27 @@ const btnInit=document.getElementById('btnInit');
       }, (err)=>{
         setStatus(dashStatus, "Erro realtime: " + (err.message||err), "warn");
       });
+
+      
+      // Logs realtime (últimos N)
+      try{
+        if(unsubLogs) unsubLogs();
+        const lim = Number(logsLimit?.value||300) || 300;
+        unsubLogs = colLogs.orderBy("ts","desc").limit(lim).onSnapshot((snap)=>{
+          const arr=[];
+          snap.forEach(doc=>{
+            const d=doc.data()||{};
+            // ts pode ser Timestamp; guardar ms
+            let t=null;
+            try{ t = d.ts && d.ts.toDate ? d.ts.toDate() : null; }catch(e){}
+            arr.push({ when: t, who: d.who||"", product: d.product||"", delta: Number(d.delta||0) });
+          });
+          lastLogs=arr;
+          if(!panelLogs.classList.contains("hide")) rebuildLogs();
+        }, (err)=>{
+          setStatus(logsStatus, "Erro realtime logs: " + (err.message||err), "warn");
+        });
+      }catch(e){}
 
       return true;
     }catch(err){
@@ -620,6 +686,8 @@ const btnInit=document.getElementById('btnInit');
           batch.set(colProducts.doc(it.name), {
             name: it.name,
             prev: it.q,
+            lastWho: (firebase.auth().currentUser?.email || firebase.auth().currentUser?.uid || "IMPORT_PREV"),
+            lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           }, {merge:true});
         });
@@ -635,7 +703,7 @@ const btnInit=document.getElementById('btnInit');
           const prev=Number(d.prev||0);
           const neu=Number(d.neu||0);
           tx.set(ref, {
-            prev, neu,
+prev, neu,
             diff: neu - prev,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           }, {merge:true});
@@ -650,7 +718,105 @@ const btnInit=document.getElementById('btnInit');
     }
   });
 
-  btnResetNew.addEventListener("click", async ()=> {
+  
+  // ================== Importar contagem nova (CSV) ==================
+  let _newFileCache = null;
+  if(newFile){
+    newFile.addEventListener("change", (e)=>{
+      _newFileCache = e.target.files?.[0] || null;
+      if(_newFileCache){
+        setStatus(importStatus, `Ficheiro selecionado: ${_newFileCache.name}. Clique “Importar agora”.`, "warn");
+      }else{
+        setStatus(importStatus, "Nenhum ficheiro selecionado.", "warn");
+      }
+    });
+  }
+  if(btnClearNewFile){
+    btnClearNewFile.addEventListener("click", ()=>{
+      if(newFile) newFile.value="";
+      _newFileCache=null;
+      setStatus(importStatus, "Ficheiro limpo.", "ok");
+    });
+  }
+
+  async function importNewCountFromFile(file){
+    if(!file){ setStatus(importStatus, "Escolha um CSV primeiro.", "warn"); return; }
+    if(!await connectFirebase()){
+      setStatus(importStatus, "Precisa de estar ligado e autenticado.", "warn");
+      return;
+    }
+    try{
+      setStatus(importStatus, "A ler CSV…", "warn");
+      const rows=parseCSV(await file.text());
+      let start=0;
+      if(rows.length){
+        const first=rows[0].map(x=>(x||"").toLowerCase());
+        const looksHeader=first.some(x=>x.includes("produto")||x.includes("product")||x.includes("qty")||x.includes("quant")||x.includes("qtd"));
+        if(looksHeader) start=1;
+      }
+      const items=[];
+      for(let i=start;i<rows.length;i++){
+        const r=rows[i]; if(!r || r.length<2) continue;
+        const name=normalize(r[0]); const q=parseQty(r[1]);
+        if(name) items.push({name,q});
+      }
+      if(!items.length){
+        setStatus(importStatus, "CSV sem linhas válidas (precisa de Produto e Qty).", "warn");
+        return;
+      }
+
+      // Escrever neu em batch (substitui)
+      setStatus(importStatus, `A importar Nova… (${items.length} linhas)`, "warn");
+      for(let i=0;i<items.length;i+=450){
+        const batch=db.batch();
+        items.slice(i,i+450).forEach(it=>{
+          batch.set(colProducts.doc(it.name), {
+            name: it.name,
+            neu: it.q,
+            lastWho: (firebase.auth().currentUser?.email || firebase.auth().currentUser?.uid || "IMPORT_NEW"),
+            lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, {merge:true});
+        });
+        await batch.commit();
+      }
+
+      // Recalcular diff para os itens importados
+      setStatus(importStatus, "A recalcular discrepâncias…", "warn");
+      for(const it of items){
+        const ref=colProducts.doc(it.name);
+        await db.runTransaction(async (tx)=>{
+          const snap=await tx.get(ref);
+          const d=snap.exists ? snap.data() : {};
+          const prev=Number(d.prev||0);
+          const neu=Number(d.neu||0);
+          tx.set(ref, {
+            prev, neu,
+            diff: neu - prev,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, {merge:true});
+        });
+      }
+
+      setStatus(importStatus, `✅ Importação concluída. Linhas: ${items.length}.`, "ok");
+      // Atualizar dashboard
+      if(!panelDash.classList.contains("hide")) rebuildDashboard();
+      if(selectedProduct) refreshProductStats();
+    }catch(e){
+      setStatus(importStatus, "Erro importação: " + (e.message||e), "bad");
+    }finally{
+      if(newFile) newFile.value="";
+      _newFileCache=null;
+    }
+  }
+
+  if(btnImportNew){
+    btnImportNew.addEventListener("click", async ()=>{
+      await importNewCountFromFile(_newFileCache);
+    });
+  }
+
+btnResetNew.addEventListener("click", async ()=> {
     if(!await connectFirebase()) return;
     setStatus(adminStatus, "A resetar nova contagem…", "warn");
     try{
@@ -703,7 +869,10 @@ const btnInit=document.getElementById('btnInit');
         prev,
         neu: neu1,
         diff: neu1 - prev,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        lastWho: item.who,
+        lastDelta: Number(item.delta||0),
+        lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
+updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }, {merge:true});
 
       tx.set(colLogs.doc(), {
@@ -765,9 +934,7 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
   btnClearSel.addEventListener("click", ()=> {
     selectedProduct=null; selected.value=""; search.value=""; qty.value="";
     localStorage.removeItem(SELKEY);
-    prevQty.textContent="—"; newQty.textContent="—"; diffQty.textContent="—";
-    diffQty.style.color="rgba(255,255,255,.88)";
-    setStatus(status, "Seleção limpa.", "ok");
+    newQty.textContent="—"; setStatus(status, "Seleção limpa.", "ok");
     search.focus();
   });
 
@@ -776,13 +943,8 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
     if(!selectedProduct) return;
     const found = lastProducts.find(x=>x.id===selectedProduct);
     if(!found) return;
-    const prev=found.prev||0;
     const neu=found.neu||0;
-    const diff=neu-prev;
-    prevQty.textContent=fmt(prev);
     newQty.textContent=fmt(neu);
-    diffQty.textContent = diff===0 ? "0" : (diff>0 ? ("+"+fmt(diff)) : String(diff));
-    diffQty.style.color = diff===0 ? "rgba(255,255,255,.88)" : (diff>0 ? "var(--ok)" : "var(--bad)");
   }
 
   // ================== Dashboard ==================
@@ -823,39 +985,97 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
   }
   dashFilter.addEventListener("input", ()=>rebuildDashboard());
 
-  // ================== Exports ==================
+  
+  // ================== Logs ==================
+  function fmtWhen(d){
+    if(!d) return "";
+    try{
+      const pad=(n)=>String(n).padStart(2,"0");
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }catch(e){ return ""; }
+  }
+
+  function rebuildLogs(){
+    if(!connected){
+      logsBody.innerHTML=`<tr><td colspan="4" style="color:var(--muted);padding:12px">Ligue no Admin e faça login.</td></tr>`;
+      setStatus(logsStatus, "Desligado.", "warn");
+      return;
+    }
+    const filt=normalize(logsFilter.value).toLowerCase();
+    const rows = lastLogs.filter(r=>{
+      if(!filt) return true;
+      return (r.product||"").toLowerCase().includes(filt) || (r.who||"").toLowerCase().includes(filt);
+    });
+
+    if(!rows.length){
+      logsBody.innerHTML=`<tr><td colspan="4" style="color:var(--muted);padding:12px">Sem registos.</td></tr>`;
+      setStatus(logsStatus, "Atualizado.", "ok");
+      return;
+    }
+
+    logsBody.innerHTML = rows.map(r=>{
+      const d = fmtWhen(r.when);
+      const who = escapeHtml(r.who||"");
+      const prod = escapeHtml(r.product||"");
+      const delta = r.delta;
+      return `<tr>
+        <td class="mono">${escapeHtml(d)}</td>
+        <td title="${who}">${who}</td>
+        <td title="${prod}">${prod}</td>
+        <td class="mono">${delta}</td>
+      </tr>`;
+    }).join("");
+    setStatus(logsStatus, `Atualizado. Registos: ${rows.length}`, "ok");
+  }
+
+  if(logsFilter) logsFilter.addEventListener("input", ()=>rebuildLogs());
+  if(btnRefreshLogs) btnRefreshLogs.addEventListener("click", async ()=>{
+    if(!await connectFirebase()) return;
+    rebuildLogs();
+  });
+
+  if(btnExportLogs) btnExportLogs.addEventListener("click", ()=>{
+    const sep="\t";
+    const header=["Data","Utilizador","Produto","Delta"].join(sep)+"\n";
+    const rows = lastLogs.slice().reverse().map(r=>{
+      return [fmtWhen(r.when), r.who||"", r.product||"", r.delta||0].join(sep);
+    }).join("\n") + "\n";
+    const stamp=new Date().toISOString().slice(0,10);
+    downloadText(`registos_${stamp}.tsv`, header+rows);
+    setStatus(logsStatus, "Exportado (TSV).", "ok");
+  });
+
+// ================== Exports ==================
   btnExportDiff.addEventListener("click", ()=> {
     const rows = lastProducts.map(x=> {
       const diff=(x.neu||0)-(x.prev||0);
-      return { product:x.name, prev:x.prev||0, neu:x.neu||0, diff };
+      return { product:x.name, prev:x.prev||0, neu:x.neu||0, diff, lastWho: (x.lastWho||"") };
     }).filter(r=>r.diff!==0);
 
-    const header="Produto,Anterior,Nova,Dif\n";
+    const sep="\t";
+    const header=["Produto","Anterior","Nova","Dif","UltimoPor"].join(sep)+"\n";
     const body = rows.map(r=> {
-      const p = (r.product.includes(",") || r.product.includes('"')) ? '"' + r.product.replaceAll('"','""') + '"' : r.product;
-      return `${p},${r.prev},${r.neu},${r.diff}`;
+      return [r.product, r.prev, r.neu, r.diff, r.lastWho].join(sep);
     }).join("\n") + "\n";
     const stamp=new Date().toISOString().slice(0,10);
-    downloadText(`discrepancias_${stamp}.csv`, header+body);
-    setStatus(dashStatus, "CSV exportado.", "ok");
+    downloadText(`discrepancias_${stamp}.tsv`, header+body);
+    setStatus(dashStatus, "Exportado (TSV).", "ok");
   });
-
   btnExportNew.addEventListener("click", ()=> {
     const map = new Map(lastProducts.map(x=>[x.id,x]));
-    const header="Produto,Qty\n";
+    const sep="\t";
+    const header=["Produto","QtyNova","UltimoPor"].join(sep)+"\n";
     const lines=[];
     for(const p of PRODUCTS){
       const d=map.get(p);
       const q=d ? (d.neu||0) : 0;
-      const safe=(p.includes(",")||p.includes('"')) ? '"' + p.replaceAll('"','""') + '"' : p;
-      lines.push(`${safe},${q}`);
+      const who=d ? (d.lastWho||"") : "";
+      lines.push([p, q, who].join(sep));
     }
     const stamp=new Date().toISOString().slice(0,10);
-    downloadText(`contagem_nova_${stamp}.csv`, header+lines.join("\n")+"\n");
-    setStatus(dashStatus, "CSV exportado.", "ok");
+    downloadText(`contagem_nova_${stamp}.tsv`, header+lines.join("\n")+"\n");
+    setStatus(dashStatus, "Exportado (TSV).", "ok");
   });
-
-  
   // ================== Gate: login obrigatório antes de usar ==================
   function showGate(msg="", kind="warn"){
     document.body.classList.add("locked");
