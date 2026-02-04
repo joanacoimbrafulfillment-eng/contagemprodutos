@@ -120,6 +120,7 @@
     <h1>Inventário — Multiutilizador (Firestore)</h1>
     <p class="sub">Telemóveis para lançar contagens (soma atómica) • PC para ver discrepâncias em tempo real.</p>
   </div>
+  <div class="pill" style="margin-left:auto" title="Contagem ativa"><span>Contagem:</span> <strong id="activeSessionLabel">—</strong></div>
   <div class="tabs">
     <div class="tab active" id="tabEntry">Entrada (mobile)</div>
     <div class="tab" id="tabDash">Dashboard (PC)</div>
@@ -232,7 +233,7 @@
       <div>
         <label>Namespace (separar por mês)</label>
         <input id="namespace" type="text" placeholder="Ex.: inv_2026_02"/>
-        <div class="small">Coleções usadas: <span class="kbd">NAMESPACE_products</span> e <span class="kbd">NAMESPACE_logs</span></div>
+        <div class="small">Coleções usadas: <span class=\"kbd\">NAMESPACE_sessions/&lt;id&gt;/products</span> e <span class=\"kbd\">NAMESPACE_sessions/&lt;id&gt;/logs</span></div>
       </div>
       <div>
         <label>Estado ligação</label>
@@ -240,6 +241,25 @@
         <div class="small">Config Firebase já está embutida (do teu projeto).</div>
       </div>
     </div>
+
+    <div style="margin-top:10px" class="row">
+      <div>
+        <label>Contagem ativa</label>
+        <select id="sessionSelect"></select>
+        <div class="small">Cada contagem é independente (produtos, anterior, nova e registos separados).</div>
+      </div>
+      <div>
+        <label>Ações de contagem</label>
+        <div class="gridQuick" style="grid-template-columns:1fr 1fr">
+          <button id="btnOpenSession" class="secondary">Abrir</button>
+          <button id="btnNewSession" class="danger">Nova contagem</button>
+        </div>
+        <div class="small">Use “Nova contagem” para começar do zero sem misturar com as antigas.</div>
+      </div>
+    </div>
+
+    <div id="sessionStatus" class="status" style="margin-top:10px">Crie ou selecione uma contagem.</div>
+
 
     <div style="margin-top:10px" class="row">
       <div>
@@ -376,6 +396,7 @@
 
   // ================== Storage keys ==================
   const CFGKEY="inv_cfg_v3";      // {namespace}
+  const SESSIONKEY="inv_session_v1";
   const QKEY="inv_pending_v3";    // queue offline
   const SELKEY="inv_selected_v3"; // last selected
 
@@ -433,6 +454,12 @@ const btnInit=document.getElementById('btnInit');
   const adminStatus=document.getElementById('adminStatus');
 
   
+  // Sessões (contagens)
+  const sessionSelect=document.getElementById('sessionSelect');
+  const btnOpenSession=document.getElementById('btnOpenSession');
+  const btnNewSession=document.getElementById('btnNewSession');
+  const sessionStatus=document.getElementById('sessionStatus');
+  const activeSessionLabel=document.getElementById('activeSessionLabel');
   // Import nova contagem
   const newFile=document.getElementById('newFile');
   const btnImportNew=document.getElementById('btnImportNew');
@@ -453,9 +480,12 @@ const sugg=document.getElementById('sugg');
   let colLogs=null;
   let unsubProducts=null;
   let unsubLogs=null;
+  let unsubSessions=null;
   // Cache for dashboard/stats
   let lastProducts=[];
-  let lastLogs=[]; // array of {ts, who, product, delta} // array of {id, name, prev, neu}
+  let lastLogs=[];
+  let currentSessionId = null;
+  let sessionsCache = [];
 
   // ================== Helpers ==================
   function normalize(s){ return (s??"").toString().replace(/\s+/g," ").trim(); }
@@ -464,6 +494,21 @@ const sugg=document.getElementById('sugg');
   function setStatus(el,msg,kind=""){ el.textContent=msg; el.className="status"+(kind?(" "+kind):""); }
   function saveCfg(cfg){ localStorage.setItem(CFGKEY, JSON.stringify(cfg||{})); }
   function loadCfg(){ try{ return JSON.parse(localStorage.getItem(CFGKEY)||"{}"); }catch(e){ return {}; } }
+
+  function makeSessionId(){
+    const d=new Date();
+    const pad=(n)=>String(n).padStart(2,"0");
+    return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}_${Math.random().toString(16).slice(2,6)}`;
+  }
+  function loadSessionId(){
+    try{ return localStorage.getItem(SESSIONKEY) || null; }catch(e){ return null; }
+  }
+  function saveSessionId(id){
+    try{ localStorage.setItem(SESSIONKEY, id||""); }catch(e){}
+  }
+  function setActiveSessionLabel(nameOrId){
+    if(activeSessionLabel) activeSessionLabel.textContent = nameOrId || "—";
+  }
   function saveQueue(q){ localStorage.setItem(QKEY, JSON.stringify(q||[])); pendingCount.textContent=String((q||[]).length); }
   function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QKEY)||"[]"); }catch(e){ return []; } }
 
@@ -598,12 +643,54 @@ if(which==="dash") rebuildDashboard();
         return false;
       }
 
-      colProducts = db.collection(ns + "_products");
-      colLogs = db.collection(ns + "_logs");
+      // Coleções (por contagem/sessão)
+      const colSessions = db.collection(ns + "_sessions");
 
-      connected=true;
-      setStatus(adminStatus, `✅ Ligado ao Firestore (namespace: ${ns}).`, "ok");
+      // sessão guardada no dispositivo
+      if(!currentSessionId){
+        currentSessionId = loadSessionId();
+      }
+
+      // Se não houver sessão ativa, escolhe a mais recente; se não existir, cria "Default"
+      if(!currentSessionId){
+        try{
+          const snap = await colSessions.orderBy("createdAt","desc").limit(1).get();
+          if(!snap.empty){
+            const doc = snap.docs[0];
+            currentSessionId = doc.id;
+            saveSessionId(currentSessionId);
+          }
+        }catch(e){}
+      }
+
+      if(!currentSessionId){
+        try{
+          const id = makeSessionId();
+          await colSessions.doc(id).set({
+            name: "Default",
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdBy: (firebase.auth().currentUser?.email || firebase.auth().currentUser?.uid || "")
+          }, {merge:true});
+          currentSessionId = id;
+          saveSessionId(id);
+        }catch(e){
+          connected=false;
+          setStatus(sessionStatus, "⚠ Não foi possível criar sessão Default. Veja permissões do Firestore.", "bad");
+          setActiveSessionLabel("—");
+          return false;
+        }
+      }
+
+      colProducts = colSessions.doc(currentSessionId).collection("products");
+      colLogs = colSessions.doc(currentSessionId).collection("logs");
+connected=true;
+      setStatus(adminStatus, `✅ Ligado ao Firestore (namespace: ${ns}). Contagem: ${currentSessionId}`, "ok");
       setStatus(status, `✅ Ligado e autenticado (namespace: ${ns}).`, "ok");
+      try{
+        const s = sessionsCache.find(x=>x.id===currentSessionId);
+        setActiveSessionLabel(s ? s.name : currentSessionId);
+      }catch(e){}
+
       try{
         const user = firebase.auth().currentUser;
         if(whoDisplay && user) whoDisplay.value = (user.email || user.uid);
@@ -652,6 +739,99 @@ if(which==="dash") rebuildDashboard();
       return false;
     }
   }
+  // ================== Sessões (contagens) ==================
+  async function loadSessions(){
+    if(!connected){
+      // ainda não ligado: tentar ligar se já houver login e sessão
+      return;
+    }
+    try{
+      const ns=getNamespace();
+      const colSessions = db.collection(ns + "_sessions");
+      if(unsubSessions) unsubSessions();
+      unsubSessions = colSessions.orderBy("createdAt","desc").limit(200).onSnapshot((snap)=>{
+        const arr=[];
+        snap.forEach(doc=>{
+          const d=doc.data()||{};
+          arr.push({id: doc.id, name: d.name || doc.id, createdAt: d.createdAt||null});
+        });
+        sessionsCache=arr;
+        if(sessionSelect){
+          sessionSelect.innerHTML = arr.map(s=>{
+            const sel = (s.id===currentSessionId) ? "selected" : "";
+            return `<option value="${escapeHtml(s.id)}" ${sel}>${escapeHtml(s.name)} (${escapeHtml(s.id)})</option>`;
+          }).join("");
+        }
+        const current = arr.find(x=>x.id===currentSessionId);
+        setActiveSessionLabel(current ? current.name : (currentSessionId||"—"));
+        setStatus(sessionStatus, currentSessionId ? `Contagem ativa: ${current ? current.name : currentSessionId}` : "Sem contagem ativa.", currentSessionId ? "ok" : "warn");
+      });
+    }catch(e){
+      setStatus(sessionStatus, "Erro ao carregar contagens: " + (e.message||e), "warn");
+    }
+  }
+
+  async function createNewSession(){
+    if(!await connectFirebase()){
+      setStatus(sessionStatus, "Precisa de login + ligação ao Firebase para criar contagem.", "warn");
+      return;
+    }
+    try{
+      const ns=getNamespace();
+      const colSessions = db.collection(ns + "_sessions");
+      const name = prompt("Nome da nova contagem (ex.: Fim de mês Fevereiro 2026):");
+      if(!name) return;
+
+      const id = makeSessionId();
+      await colSessions.doc(id).set({
+        name: name.trim(),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        createdBy: (firebase.auth().currentUser?.email || firebase.auth().currentUser?.uid || "")
+      }, {merge:true});
+
+      currentSessionId = id;
+      saveSessionId(id);
+      setActiveSessionLabel(name.trim());
+      setStatus(sessionStatus, `✅ Nova contagem criada: ${name} (${id}).`, "ok");
+
+      // Re-ligar às subcoleções desta sessão
+      connected=false;
+      if(unsubProducts){ try{unsubProducts();}catch(e){} unsubProducts=null; }
+      if(unsubLogs){ try{unsubLogs();}catch(e){} unsubLogs=null; }
+      lastProducts=[]; lastLogs=[];
+      await connectFirebase();
+        await loadSessions();
+      await loadSessions();
+      // Vai para Admin para inicializar/importar (se quiser)
+      setTab("admin");
+    }catch(e){
+      setStatus(sessionStatus, "Erro a criar contagem: " + (e.message||e), "bad");
+    }
+  }
+
+  async function openSelectedSession(){
+    if(!await connectFirebase()){
+      setStatus(sessionStatus, "Precisa de login + ligação ao Firebase.", "warn");
+      return;
+    }
+    const id = sessionSelect ? sessionSelect.value : null;
+    if(!id){ setStatus(sessionStatus, "Selecione uma contagem.", "warn"); return; }
+    currentSessionId = id;
+    saveSessionId(id);
+    setStatus(sessionStatus, `✅ Contagem aberta: ${id}`, "ok");
+
+    // Re-ligar às subcoleções desta sessão
+    connected=false;
+    if(unsubProducts){ try{unsubProducts();}catch(e){} unsubProducts=null; }
+    if(unsubLogs){ try{unsubLogs();}catch(e){} unsubLogs=null; }
+    lastProducts=[]; lastLogs=[];
+    await connectFirebase();
+    await loadSessions();
+  }
+
+  if(btnNewSession) btnNewSession.addEventListener("click", ()=>createNewSession());
+  if(btnOpenSession) btnOpenSession.addEventListener("click", ()=>openSelectedSession());
+
 
   // Login / Registo / Logout (ADMIN - só logout fica visível)
 
@@ -694,9 +874,8 @@ if(which==="dash") rebuildDashboard();
   btnConnect.addEventListener("click", async ()=> {
     setStatus(adminStatus, "A ligar…", "warn");
     await connectFirebase();
+    await loadSessions();
   });
-
-
   // ================== Admin actions ==================
   btnInit.addEventListener("click", async ()=> {
     if(!await connectFirebase()) return;
@@ -1326,6 +1505,7 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
         lastProducts=[];
         rebuildDashboard();
         refreshProductStats(true);
+        setActiveSessionLabel("—");
         showGate("Faça login para iniciar.", "warn");
       }
     });
@@ -1335,8 +1515,8 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
   (function init(){
     // init firebase e listener de autenticação (gate)
     initFirebaseCore();
+    currentSessionId = loadSessionId();
     setupAuthListener();
-
     // prefill email
     try{ gateEmail.value = localStorage.getItem("inv_auth_email_v1") || ""; }catch(e){}
 // email lembrado (para facilitar login)
