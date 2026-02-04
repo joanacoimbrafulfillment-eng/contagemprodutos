@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Inventário — Multiutilizador (Firestore)</title>
+  <style>
+    :root{--bg:#070b14;--text:#e5e7eb;--muted:#94a3b8;--border:rgba(148,163,184,.18);--shadow:0 14px 40px rgba(0,0,0,.45);
+      --ok:#34d399;--warn:#fbbf24;--bad:#fb7185;--accent:#38bdf8;--r:18px}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);
+      background:radial-gradient(1200px 700px at 12% 0%, rgba(56,189,248,.16), transparent 55%),
+                radial-gradient(900px 550px at 85% 12%, rgba(52,211,153,.10), transparent 55%), var(--bg);min-height:100vh}
+    header{padding:14px 14px 8px;max-width:1120px;margin:0 auto;display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap}
+    h1{margin:0;font-size:18px;letter-spacing:.2px}
+    .sub{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.35;max-width:820px}
+    .wrap{max-width:1120px;margin:0 auto;padding:10px 14px 22px;display:grid;grid-template-columns:1.1fr .9fr;gap:12px}
+    @media (max-width:980px){.wrap{grid-template-columns:1fr}header{align-items:flex-start}}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:12px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width:720px){.row{grid-template-columns:1fr}}
+    label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}
+    input[type="text"],input[type="number"]{width:100%;padding:12px 12px;border-radius:14px;border:1px solid var(--border);background:rgba(2,6,23,.55);color:var(--text);outline:none;font-size:16px}
+    input[type="file"]{width:100%;padding:12px;border-radius:14px;border:1px dashed rgba(148,163,184,.35);background:rgba(2,6,23,.35);color:var(--muted);font-size:14px}
+    .tabs{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .tab{border:1px solid var(--border);border-radius:999px;padding:8px 10px;font-size:12px;color:var(--muted);background:rgba(2,6,23,.35);cursor:pointer;user-select:none}
+    .tab.active{color:rgba(255,255,255,.92);background:rgba(56,189,248,.16);border-color:rgba(56,189,248,.28)}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(2,6,23,.35);
+      color:var(--muted);font-size:12px;margin:0 10px 10px 0;white-space:nowrap}
+    .pill strong{color:rgba(255,255,255,.92);font-weight:900}
+    .status{margin-top:10px;padding:10px 12px;border-radius:14px;border:1px solid var(--border);background:rgba(2,6,23,.35);color:var(--muted);font-size:12px;line-height:1.35}
+    .status.ok{border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.10);color:rgba(255,255,255,.92)}
+    .status.warn{border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.10);color:rgba(255,255,255,.92)}
+    .status.bad{border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.10);color:rgba(255,255,255,.92)}
+    .gridQuick{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+    @media (max-width:520px){.gridQuick{grid-template-columns:repeat(2,1fr)}}
+    button{width:100%;border:1px solid var(--border);background:rgba(56,189,248,.16);color:rgba(255,255,255,.92);padding:14px 12px;border-radius:16px;
+      cursor:pointer;font-size:16px;font-weight:900;transition:transform .05s ease, background .15s ease;touch-action:manipulation}
+    button:hover{background:rgba(56,189,248,.22)} button:active{transform:translateY(1px)}
+    button.secondary{background:rgba(148,163,184,.10);font-weight:750;font-size:14px;padding:12px 12px}
+    button.secondary:hover{background:rgba(148,163,184,.14)}
+    button.danger{background:rgba(251,113,133,.16)} button.danger:hover{background:rgba(251,113,133,.22)}
+    table{width:100%;border-collapse:collapse;font-size:12px;overflow:hidden;border-radius:14px;border:1px solid var(--border)}
+    thead th{text-align:left;padding:10px;border-bottom:1px solid var(--border);background:rgba(2,6,23,.45);color:rgba(255,255,255,.9)}
+    tbody td{padding:10px;border-bottom:1px solid rgba(148,163,184,.10);vertical-align:top;color:rgba(255,255,255,.88)}
+    tbody tr:last-child td{border-bottom:none}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .diffpos{color:var(--ok);font-weight:900} .diffneg{color:var(--bad);font-weight:900}
+    .small{color:var(--muted);font-size:12px;line-height:1.35;margin-top:8px} .hide{display:none!important}
+    .sugg{position:absolute;z-index:60;background:rgba(2,6,23,.96);border:1px solid rgba(148,163,184,.22);border-radius:16px;box-shadow:0 18px 46px rgba(0,0,0,.45);
+      padding:6px;max-height:320px;overflow:auto;display:none}
+    .sugg .item{padding:10px 10px;border-radius:14px;cursor:pointer;color:rgba(255,255,255,.92);font-size:14px}
+    .sugg .item.active{background:rgba(56,189,248,.20)}
+    .hint{margin-top:10px;padding:10px 12px;border-radius:14px;border:1px solid rgba(148,163,184,.22);background:rgba(148,163,184,.06);color:rgba(255,255,255,.9);font-size:12px;line-height:1.35}
+    .kbd{font-family:ui-monospace,monospace;background:rgba(148,163,184,.12);padding:1px 6px;border-radius:8px;border:1px solid rgba(148,163,184,.22)}
+  
+    /* Gate (login obrigatório) */
+    .gate{
+      position:fixed; inset:0; z-index:9999;
+      display:flex; align-items:center; justify-content:center;
+      padding:16px;
+      background:rgba(0,0,0,.72);
+      backdrop-filter: blur(8px);
+    }
+    .gate .box{
+      width:min(520px, 100%);
+      border-radius:22px;
+      border:1px solid rgba(148,163,184,.22);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      box-shadow:0 18px 60px rgba(0,0,0,.55);
+      padding:14px;
+    }
+    .gate h2{margin:0 0 6px; font-size:18px}
+    .gate p{margin:0 0 10px; color:var(--muted); font-size:12px; line-height:1.35}
+    .gate .row{grid-template-columns:1fr}
+    @media (min-width:640px){ .gate .row{grid-template-columns:1fr 1fr} }
+    .locked header, .locked .wrap{ filter: blur(6px); pointer-events:none; user-select:none; }
+
+  
+    /* (Opcional) esconder login duplicado no Admin */
+    #authEmail, #authPass, #btnLogin, #btnRegister, #authStatus { display:none !important; }
+
+  </style>
+
+  <!-- Firebase (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+</head>
+<body class="locked">
+
+<div id="loginGate" class="gate">
+  <div class="box">
+    <h2>Entrar</h2>
+    <p>O login é obrigatório antes de iniciar a contagem. Use o seu email e password.</p>
+
+    <div class="row">
+      <div>
+        <label>Email</label>
+        <input id="gateEmail" type="text" inputmode="email" autocomplete="email" placeholder="ex: nome@empresa.com"/>
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="gatePass" type="password" autocomplete="current-password" placeholder="••••••••"/>
+      </div>
+    </div>
+
+    <div class="gridQuick" style="grid-template-columns:1fr; margin-top:10px">
+      <button id="gateLogin" class="secondary">Entrar</button>
+    </div>
+
+    <div id="gateStatus" class="status" style="margin-top:10px">—</div>
+
+    <div class="hint" style="margin-top:10px"><b>Contas:</b> Os utilizadores são criados no Firebase Console (Authentication → Users).</div>
+  </div>
+</div>
+
+<header>
+  <div>
+    <h1>Inventário — Multiutilizador (Firestore)</h1>
+    <p class="sub">Telemóveis para lançar contagens (soma atómica) • PC para ver discrepâncias em tempo real.</p>
+  </div>
+  <div class="tabs">
+    <div class="tab active" id="tabEntry">Entrada (mobile)</div>
+    <div class="tab" id="tabDash">Dashboard (PC)</div>
+    <div class="tab" id="tabAdmin">Admin</div>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- ENTRY -->
+  <section class="card" id="panelEntry">
+    <div class="row">
+      <div>
+        <label>Utilizador</label>
+        <input id="whoDisplay" type="text" readonly placeholder="—"/>
+        <div class="small">Vem automaticamente do login.</div>
+      </div>
+      <div>
+        <label>Produto (pesquisa rápida)</label>
+        <input id="search" type="text" placeholder="Ex.: SKU229 ou 'JUICER'"/>
+        <div class="small">Enter escolhe • ↑↓ navegam • Esc limpa</div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px" class="row">
+      <div>
+        <label>Produto selecionado</label>
+        <input id="selected" type="text" readonly placeholder="Nenhum produto selecionado"/>
+      </div>
+      <div>
+        <label>Quantidade (personalizada)</label>
+        <div class="row" style="grid-template-columns:1fr auto;gap:10px">
+          <input id="qty" type="number" inputmode="numeric" step="1" min="0" placeholder="0"/>
+          <button id="btnAddCustom" style="min-width:140px">Adicionar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="gridQuick">
+      <button class="quick" data-add="1">+1</button>
+      <button class="quick" data-add="2">+2</button>
+      <button class="quick" data-add="5">+5</button>
+      <button class="quick" data-add="10">+10</button>
+    </div>
+
+    <div style="margin-top:10px">
+      <span class="pill">Anterior: <strong id="prevQty">—</strong></span>
+      <span class="pill">Nova (total): <strong id="newQty">—</strong></span>
+      <span class="pill">Dif: <strong id="diffQty">—</strong></span>
+      <span class="pill">Pendentes offline: <strong id="pendingCount">0</strong></span>
+    </div>
+
+    <div id="status" class="status">Abra Admin, clique “Ligar”, e depois “Inicializar produtos”.</div>
+
+    <div class="gridQuick" style="grid-template-columns:1fr 1fr; margin-top:12px">
+      <button id="btnSync" class="secondary">Sincronizar pendentes</button>
+      <button id="btnClearSel" class="secondary">Limpar seleção</button>
+    </div>
+
+    <div class="hint"><b>Multiutilizador:</b> cada “Adicionar” atualiza o Firestore com <b>transaction</b>, garantindo soma correta.</div>
+  </section>
+
+  <!-- DASH -->
+  <aside class="card hide" id="panelDash">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+      <div>
+        <div style="font-weight:900;margin-bottom:4px">Dashboard</div>
+        <div class="small">Discrepâncias (Anterior vs Nova). Atualiza em tempo real.</div>
+      </div>
+      <div class="pill">Discrepâncias: <strong id="discCount">—</strong></div>
+    </div>
+
+    <div style="margin-top:10px" class="row">
+      <div>
+        <label>Filtro (produto contém…)</label>
+        <input id="dashFilter" type="text" placeholder="Ex.: SKU229 / JUICER"/>
+      </div>
+      <div>
+        <label>Exportar</label>
+        <div class="row" style="grid-template-columns:1fr 1fr;gap:10px">
+          <button id="btnExportDiff" class="secondary">Discrepâncias (CSV)</button>
+          <button id="btnExportNew" class="secondary">Nova contagem (CSV)</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:58%">Produto</th>
+            <th class="mono">Anterior</th>
+            <th class="mono">Nova</th>
+            <th class="mono">Dif</th>
+          </tr>
+        </thead>
+        <tbody id="discBody">
+          <tr><td colspan="4" style="color:var(--muted);padding:12px">Sem dados. Ligue no Admin.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="dashStatus" class="status" style="margin-top:10px">—</div>
+  </aside>
+
+  <!-- ADMIN -->
+  <section class="card" id="panelAdmin">
+    <div style="font-weight:900;margin-bottom:6px">Admin / Configuração</div>
+
+    <div class="row">
+      <div>
+        <label>Namespace (separar por mês)</label>
+        <input id="namespace" type="text" placeholder="Ex.: inv_2026_02"/>
+        <div class="small">Coleções usadas: <span class="kbd">NAMESPACE_products</span> e <span class="kbd">NAMESPACE_logs</span></div>
+      </div>
+      <div>
+        <label>Estado ligação</label>
+        <button id="btnConnect" class="secondary">Ligar</button>
+        <div class="small">Config Firebase já está embutida (do teu projeto).</div>
+      </div>
+    </div>
+
+    <div style="margin-top:10px" class="row">
+      <div>
+        <label>Login (Email)</label>
+        <input id="authEmail" type="text" inputmode="email" autocomplete="email" placeholder="ex: nome@empresa.com"/>
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="authPass" type="password" autocomplete="current-password" placeholder="••••••••"/>
+      </div>
+    </div>
+
+    <div class="gridQuick" style="grid-template-columns:1fr 1fr; margin-top:10px">
+      <button id="btnLogin" class="secondary">Entrar</button><button id="btnLogout" class="danger">Sair</button>
+    </div>
+
+    <div id="authStatus" class="status" style="margin-top:10px">—</div>
+
+
+    <div style="margin-top:10px" class="row">
+      <div>
+        <label>Upload contagem anterior (CSV: Produto, Qty)</label>
+        <input id="prevFile" type="file" accept=".csv,.txt"/>
+        <div class="small">Importa para <b>Prev</b> e recalcula discrepâncias.</div>
+      </div>
+      <div>
+        <label>Ações</label>
+        <div class="gridQuick" style="grid-template-columns:1fr 1fr">
+          <button id="btnInit" class="secondary">Inicializar produtos</button>
+          <button id="btnResetNew" class="danger">Reset nova contagem</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="adminStatus" class="status">1) Ligar  2) Inicializar produtos  3) (Opcional) Upload contagem anterior</div>
+
+    <div class="hint">
+      <b>Checklist Firebase:</b><br/>
+      1) Firestore Database criado<br/>
+      2) Authentication → <span class="kbd">Email/Password</span> ativado<br/>
+      3) Regras: permitir read/write só a utilizadores autenticados
+    </div>
+  </section>
+</div>
+
+<div class="sugg" id="sugg"></div>
+
+<script>
+  // ================== Produtos ==================
+  const PRODUCTS = ["SKU2072 CHRISTMAS TREE 220CM", "SKU2118 MULTIF JUICER", "SKU2226 TOURIST GRILL", "SKU229 SEWING MACHINE", "SKU4011 FIREPLACE", "SKU414 DRONE", "SKU428 MINI AIR CONDITIONER", "SKU541 HEDGE TRIMMERS", "SKU547 THERMOSTATIC WATER HEATER", "SKU6062 COLUMN AIR CONDITIONER", "SKUCR7021 STEAMER", "SKU058 GARDEN SHEARS", "SKU2132 SHOWER HEAD", "SKU368 MINI SAW", "SKU511 CAMPING COOKWARE", "SKU517 ANTENNA", "SKU006 SILICONE KITCHEN GLOVES", "SKU012 (X5) SOLAR LAMP SET", "SKU017 BATTERY POWERED TRIMMER", "SKU024 EMBROIDERY KIT", "SKU028 (X2) RODENT REPELLENT", "SKU030 AIR FRESHNER", "SKU037 ELECTRONIC KITCHEN SCALE", "SKU048 WARMING OINTMENT", "SKU059 FOOT MASSAGE SLIPPERS", "SKU060 MAGNETIC CLEANER", "SKU069 MINI WIRELESS CAMERA", "SKU085B MOSQUITO REPELLENT WATCH", "SKU094 SET SILICON", "SKU113 AIR HUMIDIFIER DIFFUSER", "SKU114 NECK MASSAGER", "SKU117 BLUETOOTH GPS KEY DOG CAT FINDER", "SKU130 MASSAGE GUN", "SKU152 DRIVING RECORDER", "SKU172 WIRELESS KEYBOARD", "SKU181 TEFLON MAT FOR GRILL OVEN BAKING", "SKU191 CAR MIRROR RECORDER", "SKU1999 CASE", "SKU2008 MEMORY CARD", "SKU201 GARDEN GLOVES", "SKU2021 TWO CHAINS AND A GUIDE FOR A MINI SAW", "SKU2030 DRONE BATTERY", "SKU2035 JUICEMAKER", "SKU2042 CAMERA PEN", "SKU2045 PHEROM ONE PLUS", "SKU2054 ELECTRIC LUNCHBOX", "SKU2055 LEAF BLOWER", "SKU2059 FEET WARMER", "SKU2065 MEIAS TÉRMICAS COM TURMALINA", "SKU2067 REFIL FILTER FOR VACUUM CLEANER", "SKU2068 PORTABLE ELECTRIC HEATER", "SKU2069 AIR CURTAIN", "SKU2077 ELECTRIC FIREPLACE", "SKU2078 CHRISTMAS CURTAIN", "SKU2079 HEATED VEST", "SKU2081 HEATED GLOVES", "SKU2082 ELECTRIC HEATER BLANKET", "SKU2084 ELECTRIC WATER HEATER", "SKU2090 MINI THERMAL PRINTER", "SKU2106 CLOTHES CHAVER", "SKU2111 GPS LOCATOR", "SKU2112 PAPER FOR A MINI PRINTER SET5", "SKU2113 HAND CRAFTING KIT", "SKU2116 AUTOMATIC HAIR CURLER", "SKU2117 BATTERY FOR A TRIMMER", "SKU2119 SILVER SLICER", "SKU2121 MINI OVEN", "SKU2122 TOPPER", "SKU2124 BATTERY FOR A SCREWDRIVER", "SKU2130 SMARTWATCH", "SKU2131 WAIST TRAINER", "SKU2133 BATTERY FOR SCISSORS", "SKU2149 SLICER SHREDDER", "SKU2153 SUPHUM FOCUS MEMORY", "SKU2154 SUPHUM HAIR GROWTH", "SKU2155 SUPHUM WEIGHT LOSS", "SKU2159 HAMMOCK", "SKU2160 ELECTRIC GRILL BBQ", "SKU2165 CLOTHES HANGER SET", "SKU2169 SPORT BLENDER", "SKU2170 GRASS TRIMMER BLADES", "SKU2171 LAMP WITH CHARGER", "SKU2178 FOLDING FAN", "SKU2183 THERMAL BAG", "SKU2185 COOLING INSERT FOR AIR CONDITIONER", "SKU2195 3 IN 1 BREAKFAST MAKER", "SKU2197 CAMPING HAMMOCK", "SKU2199 BLOWER BATTERY 48V", "SKU2202 SPARE SCISSOR BLADES", "SKU2205 CHRISTMAS LASER LIGHT", "SKU2211 CHRISTMAS TRAIN", "SKU2217 SEWING MACHINE TABLE", "SKU2218 AIR HUMIDIFIER WITH FLAME EFECT", "SKU2220 MATTRESS PUMP", "SKU2221 USB CABLE", "SKU2228 TANKLESS ELECTRIC WATER HEATER", "SKU2234 NAIL DRILL", "SKU2237 PLASTIC WELDING MACHINE", "SKU2238 KNIFE SHARPENER", "SKU279 TRIMMER", "SKU290 TACTICAL FLASHLIGHT", "SKU294 ROTATING CAMERA", "SKU301 CAR HANDSFREE BLUETOOTH V30", "SKU311 WATERPROOF SOLAR LAMP", "SKU312 GLASSES ONE POWER", "SKU317 SWEEPING ROBOT", "SKU329 FOOD QUICK DEFROSTING TRAY", "SKU350 DISK LIGHTS", "SKU352 SOLAR POWER BANK", "SKU357 GRILLING TOOLS", "SKU360 GARDEN FOUNTAIN", "SKU361 VIDEODOMOFON", "SKU364 WIRELESS SCREW CAMERA", "SKU375 WIRELESS HEADPHONE", "SKU380 CORDLESS ELECTRIC CLEANING BRUSH", "SKU384 STARTER KIT", "SKU390 CAR CAMERA", "SKU393 COOKWARE SET", "SKU395 SCREWDRIVER", "SKU4000 CONJUNTO DE 10 PANOS MICROFIBRA MULTIUSOS 30X30", "SKU4004 APARADOR DE NARIZ", "SKU4005 CONJUNTO DE LÂMINAS", "SKU4009 MOPA TRIANGULAR", "SKU403 SILICONE BAG FOR DOUGH", "SKU412 MINI LANTERNA DE BOLSO", "SKU413 POWERBANK SOLAR DE BOLSO", "SKU419 HEADLAMP", "SKU421 BAGLESS VACUUM", "SKU424 RETRO CONSOLE", "SKU430 ENERGY SAVER", "SKU431 PRESSURE WASHER", "SKU435 VEGETABLE CHOPPER", "SKU436 FOLDING GLASSES", "SKU438 CAR VACUUM CLEANER", "SKU439 BATTERY 21V", "SKU454 MOSQUITO NET 2X1", "SKU456 GRASS TRIMMER", "SKU460 GRINDER AND DRILL", "SKU461 LIQUID SEALING SPRAY", "SKU464 DESIGN PORTABLE BLENDER", "SKU466 CORDLESS SCISSORS", "SKU470 INTEX INFLATABLE MATTRESS", "SKU474 MULTICOOKER", "SKU475 S POSTURE CORRECTOR", "SKU475 M POSTURE CORRECTOR", "SKU475 L POSTURE CORRECTOR", "SKU475 XL POSTURE CORRECTOR", "SKU475 XXL POSTURE CORRECTOR", "SKU475 XXXL POSTURE CORRECTOR", "SKU484 ADAPTER", "SKU486 CORDLESS IRON", "SKU497 CONSOLE", "SKU498 WI-FI SIGNAL BOOSTER", "SKU503 GAMEPAD COLOR", "SKU506 ASTRONAUT PROJECTOR", "SKU507 (X2) SOLAR STREET LAMP", "SKU510 PORTABLE TRAVEL GRILL", "SKU520 PASTA MACHINE", "SKU521 SINK POPUP FILTER", "SKU523 SPRAYER", "SKU532 INFLATABLE BED", "SKU534 MAGNETIC BAND", "SKU537 SPRAY GUN", "SKU546 COOLING AND HEATING AIR CONDITIONER", "SKU552 TRANSLATOR", "SKU563 PROTECTIVE BAG FOR FOLDING GLASSES", "SKU6014 LAUNDRY DRYER CABINET", "SKU6071 GRAY SOCKET HEATER", "SKU6073 BLACK HEATER IMITATING FIRE", "SKU6093 SMARTWATCH V17", "SKU6093-1 SMARTWATCH FILMS", "SKU7007 HEDGE TRIMMERS", "SKU7019 SOLAR POWERBANK", "SKUAD1199 KARAOKE SPEAKER", "SKUAD2943 HAIR RAZOR", "SKUAD2944 HAIR CARE KIT", "SKUAD4226 PLANETARY ROBOT", "SKUAD7036 1 FILTER FOR HAND VACUUM CLEANER", "SKUAD7860 DEHUMIDIFIER", "SKUCR4457 CHOCOLATE FOUNTAIN", "SKUEKM 033 MEAT MINCER", "SKUMS2152 FOOT CARE MASSAGER", "SKURB9281 KITCHEN KNIVES", "SKUZL7055 MARBLE POTS", "SKU7015 BATTERY CHARGER", "SKU7021 FOLDING WASHING MACHINE", "SKU2190 XL CAR PROTECTOR", "SKU2190 L CAR PROTECTOR", "SKU2175 AUTOMATIC SPRINKLER", "SKU7055 WINDOW CLEANING ROBOT", "SKU7017 TRANSLATOR EARBUDS", "SKU180 ANTI-CELLUITE MASSAGER", "SKU7012 LASER HAIR REMOVAL KIT", "SKU7032 LIQUID LAWN", "SKU2134 EYE MASSAGER", "SKU416-5 USB CAMERA", "SKU437 MOSQUITO LAMP", "SKU354 SLICER", "SKU7036 S SHOE INSERTS", "SKU7036 M SHOE INSERTS", "SKU7036 L SHOE INSERTS", "WARRANTY ES", "WARRANTY PT", "SKU7001 BODY MASSAGER", "SKU2079 S M HEATED VEST", "SKU2079 L HEATED VEST", "SKU2079 XL XXL HEATED VEST", "SKU436 15 FOLDING GLASSES", "SKU436 2 FOLDING GLASSES", "SKU436 25 FOLDING GLASSES", "SKU436 3 FOLDING GLASSES", "SKU387 HAIR SET BRUSH CURLER DRYER", "SKU083 ZOOM LENS TELESCOPE", "SKU533 BIG SOLAR LAMP", "SKU551 PLANETARY MIXER", "SKU327 MOSQUITO KILLER", "SKU2129 FURNITURE ROLLERS", "SKU2122-2 TOPPER 180x200", "SKU125 POWERFUL GUN MASSAGER", "SKU2248 SET OF LAMP AND CAMERA IN A BULB", "SKU513 MEAT MINCER", "SKUAD3223 TOASTER", "SKU146 CAMERA MINI FULL HD", "SKU6094 AIR COMPRESOR", "SKU2152 WELDING MACHINE", "SKU7006 GLUE GUN", "SKU422 ROTATING MOP", "SKU2244 COVER FOR TRANSPORTING ANIMALS", "SKU090 PET NAIL FILE", "SKU016 PORTABLE DOG WATER BOTTLE", "SKU7003 LED FACE MASK", "SKU559 FLAT SPIN MOP INSERT", "SKU7027 SET OF KEYS", "SKU2053 REFIL FILTER FOR VACUUM CLEANER", "SKU7034 ELECTRIC WASHER", "SKU6074 WHITE HEATER WITH IMITATION FIRE", "SKU137 PORTABLE MINI HEATER", "SKU6072 ELECTRIC NECK WARMER", "SKU459 MASSAGER", "SKU441 FOOD SEALER", "SKU2250 FLASHLIGHT MINI SAW PRECATEUR", "SKU2138 MULTI-TOOL", "SKU457 TOURIST COOKER", "SKU3002 SHOE INSERTS", "SKU2210 SMART LIGHTS", "SKU7028 SCOODIE - R - HOODED SCARF", "SKU7028 SCOODIE - L - HOODED SCARF", "SKU473 AUTOMATIC WASTE BIN", "SKU2057 FAN HEATER LED", "SKUEKA001 FAT-FREE FRYER", "SKU2105 PLATINUM SCRATCH REMOVER", "SKU2260 GALAXY PROJECTOR", "SKUMS9610 LINT REMOVER"];
+
+  // ================== Firebase config (já preenchida) ==================
+  const FIREBASE_CONFIG = {"apiKey": "AIzaSyCvI_QHzrSTr4VRdShQUNOdTkOLyKlQCO0", "authDomain": "contagem-de-inventario.firebaseapp.com", "projectId": "contagem-de-inventario", "storageBucket": "contagem-de-inventario.firebasestorage.app", "messagingSenderId": "756938513058", "appId": "1:756938513058:web:b25e4ac4033934db9cd5fb"};
+
+  // ================== Storage keys ==================  const CFGKEY="inv_cfg_v3";      // {namespace}
+  const QKEY="inv_pending_v3";    // queue offline
+  const SELKEY="inv_selected_v3"; // last selected
+
+  // ================== Elements ==================
+  const tabEntry=document.getElementById('tabEntry');
+  const tabDash=document.getElementById('tabDash');
+  const tabAdmin=document.getElementById('tabAdmin');
+  const panelEntry=document.getElementById('panelEntry');
+  const panelDash=document.getElementById('panelDash');
+  const panelAdmin=document.getElementById('panelAdmin');  const search=document.getElementById('search');
+  const selected=document.getElementById('selected');
+  const whoDisplay=document.getElementById('whoDisplay');
+  const qty=document.getElementById('qty');
+  const btnAddCustom=document.getElementById('btnAddCustom');
+  const btnSync=document.getElementById('btnSync');
+  const btnClearSel=document.getElementById('btnClearSel');
+
+  const prevQty=document.getElementById('prevQty');
+  const newQty=document.getElementById('newQty');
+  const diffQty=document.getElementById('diffQty');
+  const pendingCount=document.getElementById('pendingCount');
+  const status=document.getElementById('status');
+
+  const dashFilter=document.getElementById('dashFilter');
+  const discBody=document.getElementById('discBody');
+  const discCount=document.getElementById('discCount');
+  const dashStatus=document.getElementById('dashStatus');
+  const btnExportDiff=document.getElementById('btnExportDiff');
+  const btnExportNew=document.getElementById('btnExportNew');
+
+  const namespaceInput=document.getElementById('namespace');
+  const btnConnect=document.getElementById('btnConnect');
+  const prevFile=document.getElementById('prevFile');
+  
+  const authEmail=document.getElementById('authEmail');
+  const authPass=document.getElementById('authPass');
+  const btnLogin=document.getElementById('btnLogin');  const btnLogout=document.getElementById('btnLogout');
+  const authStatus=document.getElementById('authStatus');
+
+  // Gate (login obrigatório)
+  const loginGate=document.getElementById('loginGate');
+  const gateEmail=document.getElementById('gateEmail');
+  const gatePass=document.getElementById('gatePass');
+  const gateLogin=document.getElementById('gateLogin');  const gateStatus=document.getElementById('gateStatus');
+const btnInit=document.getElementById('btnInit');
+  const btnResetNew=document.getElementById('btnResetNew');
+  const adminStatus=document.getElementById('adminStatus');
+
+  const sugg=document.getElementById('sugg');
+
+  // ================== State ==================
+  let selectedProduct=null;
+  let results=[];
+  let activeIndex=-1;
+
+  // Firebase
+  let connected=false;
+  let db=null;
+  let colProducts=null;
+  let colLogs=null;
+  let unsubProducts=null;
+
+  // Cache for dashboard/stats
+  let lastProducts=[]; // array of {id, name, prev, neu}
+
+  // ================== Helpers ==================
+  function normalize(s){ return (s??"").toString().replace(/\s+/g," ").trim(); }
+  function escapeHtml(str){ return (str??"").toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
+  function fmt(n){ return Number(n||0).toLocaleString("pt-PT"); }
+  function setStatus(el,msg,kind=""){ el.textContent=msg; el.className="status"+(kind?(" "+kind):""); }
+  function saveCfg(cfg){ localStorage.setItem(CFGKEY, JSON.stringify(cfg||{})); }
+  function loadCfg(){ try{ return JSON.parse(localStorage.getItem(CFGKEY)||"{}"); }catch(e){ return {}; } }
+  function saveQueue(q){ localStorage.setItem(QKEY, JSON.stringify(q||[])); pendingCount.textContent=String((q||[]).length); }
+  function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QKEY)||"[]"); }catch(e){ return []; } }
+
+  function downloadText(filename,text){
+    const blob=new Blob([text],{type:"text/csv;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url; a.download=filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),2500);
+  }
+
+  // ================== Tabs ==================
+  function setTab(which){
+    tabEntry.classList.toggle("active", which==="entry");
+    tabDash.classList.toggle("active", which==="dash");
+    tabAdmin.classList.toggle("active", which==="admin");
+    panelEntry.classList.toggle("hide", which!=="entry");
+    panelDash.classList.toggle("hide", which!=="dash");
+    panelAdmin.classList.toggle("hide", which!=="admin");
+    if(which==="dash") rebuildDashboard();
+  }
+  tabEntry.addEventListener("click", ()=>setTab("entry"));
+  tabDash.addEventListener("click", ()=>setTab("dash"));
+  tabAdmin.addEventListener("click", ()=>setTab("admin"));
+
+  // ================== Suggestions ==================
+  function positionSugg(){ const r=search.getBoundingClientRect(); sugg.style.left=(r.left+window.scrollX)+"px"; sugg.style.top=(r.bottom+window.scrollY+8)+"px"; sugg.style.width=r.width+"px"; }
+  function closeSugg(){ sugg.style.display="none"; activeIndex=-1; }
+  function openSugg(){ if(!results.length){closeSugg();return;} positionSugg(); sugg.style.display="block"; }
+  function renderSugg(){
+    if(!results.length){sugg.innerHTML=""; closeSugg(); return;}
+    sugg.innerHTML = results.map((p,idx)=> {
+      const cls=idx===activeIndex ? "item active" : "item";
+      return `<div class="${cls}" data-idx="${idx}" title="${escapeHtml(p)}">${escapeHtml(p)}</div>`;
+    }).join("");
+    openSugg();
+  }
+  sugg.addEventListener("click",(e)=> {
+    const el=e.target.closest("[data-idx]"); if(!el) return;
+    pickProduct(results[Number(el.getAttribute("data-idx"))]);
+  });
+  document.addEventListener("click",(e)=>{ if(e.target===search || sugg.contains(e.target)) return; closeSugg(); });
+  window.addEventListener("resize",()=>{ if(sugg.style.display==="block") positionSugg(); });
+
+  function pickProduct(p){
+    selectedProduct=p;
+    selected.value=p;
+    search.value="";
+    closeSugg();
+    localStorage.setItem(SELKEY, p);
+    qty.focus();
+    refreshProductStats();
+  }
+
+  search.addEventListener("input",()=> {
+    const q=normalize(search.value).toLowerCase();
+    if(!q){results=[]; renderSugg(); return;}
+    const pref=[], rest=[];
+    for(const p of PRODUCTS){
+      const pl=p.toLowerCase();
+      if(!pl.includes(q)) continue;
+      if(pl.startsWith(q) || pl.includes(" "+q)) pref.push(p); else rest.push(p);
+      if(pref.length+rest.length>=30) break;
+    }
+    results=pref.concat(rest).slice(0,30);
+    activeIndex=results.length?0:-1;
+    renderSugg();
+  });
+  search.addEventListener("keydown",(e)=> {
+    if(e.key==="Escape"){ search.value=""; results=[]; renderSugg(); closeSugg(); return; }
+    if(e.key==="ArrowDown"){ if(!results.length) return; e.preventDefault(); activeIndex=Math.min(activeIndex+1, results.length-1); renderSugg(); return; }
+    if(e.key==="ArrowUp"){ if(!results.length) return; e.preventDefault(); activeIndex=Math.max(activeIndex-1, 0); renderSugg(); return; }
+    if(e.key==="Enter"){ if(results.length && activeIndex>=0){ e.preventDefault(); pickProduct(results[activeIndex]); } }
+  });
+
+  // ================== CSV parsing ==================
+  function splitLine(line, sep){
+    const out=[]; let cur=""; let q=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch==='"'){ if(q && line[i+1]==='"'){cur+='"'; i++;} else q=!q; }
+      else if(ch===sep && !q){ out.push(cur); cur=""; }
+      else cur+=ch;
+    }
+    out.push(cur);
+    return out.map(x=>x.trim());
+  }
+  function parseCSV(text){
+    const lines=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l=>l.trim().length);
+    if(!lines.length) return [];
+    const seps=[',',';','\t','|'];
+    let sep=',', best=1;
+    for(const cand of seps){ const cols=splitLine(lines[0], cand).length; if(cols>best){best=cols; sep=cand;} }
+    return lines.map(l=>splitLine(l, sep));
+  }
+  function parseQty(s){
+    const t=String(s??"").trim().replace(/\./g,'').replace(',', '.');
+    const n=Number(t); return isFinite(n)?n:0;
+  }
+
+  // ================== Firebase connect ==================
+  function getNamespace(){
+    const cfg=loadCfg();
+    const ns=normalize(namespaceInput.value || cfg.namespace || "");
+    return ns || "inv_default";
+  }
+
+  async function connectFirebase(){
+    if(connected) return true;
+    try{
+      const ns=getNamespace();
+      saveCfg({ namespace: ns });
+
+      // init firebase (idempotente)
+      firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
+      const auth = firebase.auth();
+      db = firebase.firestore();
+
+      // Offline persistence (best-effort)
+      try{ await db.enablePersistence({synchronizeTabs:true}); }catch(e){}
+
+      // Exigir login (gate já trata disto)
+      if(!auth.currentUser){
+        connected=false;
+        return false;
+      }
+
+      colProducts = db.collection(ns + "_products");
+      colLogs = db.collection(ns + "_logs");
+
+      connected=true;
+      setStatus(adminStatus, `✅ Ligado ao Firestore (namespace: ${ns}).`, "ok");
+      setStatus(status, `✅ Ligado e autenticado (namespace: ${ns}).`, "ok");
+      try{
+        const user = firebase.auth().currentUser;
+        if(whoDisplay && user) whoDisplay.value = (user.email || user.uid);
+      }catch(e){}
+
+      if(unsubProducts) unsubProducts();
+      unsubProducts = colProducts.onSnapshot((snap)=>{
+        const arr=[];
+        snap.forEach(doc=>{
+          const d=doc.data()||{};
+          arr.push({ id: doc.id, name: d.name||doc.id, prev: Number(d.prev||0), neu: Number(d.neu||0) });
+        });
+        lastProducts=arr;
+        if(!panelDash.classList.contains("hide")) rebuildDashboard();
+        if(selectedProduct) refreshProductStats(true);
+      }, (err)=>{
+        setStatus(dashStatus, "Erro realtime: " + (err.message||err), "warn");
+      });
+
+      return true;
+    }catch(err){
+      connected=false;
+      setStatus(adminStatus, (err.message||String(err)), "bad");
+      setStatus(status, "Não foi possível ligar ao Firebase. Veja Admin.", "bad");
+      return false;
+    }
+  }
+
+  // Login / Registo / Logout (ADMIN - só logout fica visível)
+
+  function rememberEmail(){
+    try{ localStorage.setItem("inv_auth_email_v1", (authEmail.value||"").trim()); }catch(e){}
+  }
+  function loadRememberedEmail(){
+    try{ return localStorage.getItem("inv_auth_email_v1") || ""; }catch(e){ return ""; }
+  }
+
+  btnLogin.addEventListener("click", async ()=>{
+    try{
+      rememberEmail();
+      setStatus(authStatus, "A entrar…", "warn");
+      const auth = firebase.auth();
+      await auth.signInWithEmailAndPassword((authEmail.value||"").trim(), authPass.value||"");
+      setStatus(authStatus, "✅ Login feito.", "ok");
+      // Agora ligar Firestore/coleções
+      await connectFirebase();
+    }catch(e){
+      setStatus(authStatus, "Erro login: " + (e.message||e), "bad");
+    }
+  });  btnLogout.addEventListener("click", async ()=>{
+    try{
+      const auth = firebase.auth();
+      await auth.signOut();
+      connected=false;
+      setStatus(authStatus, "Sessão terminada.", "ok");
+      setStatus(status, "⚠ Sessão terminada. Faça login para continuar.", "warn");
+      setStatus(adminStatus, "Desligado (sem autenticação).", "warn");
+      if(unsubProducts) { try{unsubProducts();}catch(e){} unsubProducts=null; }
+      lastProducts=[];
+      rebuildDashboard();
+      refreshProductStats(true);
+    }catch(e){
+      setStatus(authStatus, "Erro logout: " + (e.message||e), "bad");
+    }
+  });
+
+  btnConnect.addEventListener("click", async ()=> {
+    setStatus(adminStatus, "A ligar…", "warn");
+    await connectFirebase();
+  });
+
+
+  // ================== Admin actions ==================
+  btnInit.addEventListener("click", async ()=> {
+    if(!await connectFirebase()) return;
+    setStatus(adminStatus, "A inicializar produtos…", "warn");
+    try{
+      const batch = db.batch();
+      for(const p of PRODUCTS){
+        batch.set(colProducts.doc(p), {
+          name: p, prev: 0, neu: 0, diff: 0,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, {merge:true});
+      }
+      await batch.commit();
+      setStatus(adminStatus, `✅ Produtos inicializados/validados: ${PRODUCTS.length}`, "ok");
+    }catch(e){
+      setStatus(adminStatus, "Erro a inicializar: " + (e.message||e), "bad");
+    }
+  });
+
+  prevFile.addEventListener("change", async (e)=> {
+    const file=e.target.files?.[0];
+    if(!file) return;
+    if(!await connectFirebase()) return;
+
+    try{
+      setStatus(adminStatus, "A ler CSV…", "warn");
+      const rows=parseCSV(await file.text());
+      let start=0;
+      if(rows.length){
+        const first=rows[0].map(x=>(x||"").toLowerCase());
+        const looksHeader=first.some(x=>x.includes("produto")||x.includes("product")||x.includes("qty")||x.includes("quant")||x.includes("qtd"));
+        if(looksHeader) start=1;
+      }
+      const items=[];
+      for(let i=start;i<rows.length;i++){
+        const r=rows[i]; if(!r || r.length<2) continue;
+        const name=normalize(r[0]); const q=parseQty(r[1]);
+        if(name) items.push({name,q});
+      }
+
+      for(let i=0;i<items.length;i+=450){
+        const batch=db.batch();
+        items.slice(i,i+450).forEach(it=>{
+          batch.set(colProducts.doc(it.name), {
+            name: it.name,
+            prev: it.q,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, {merge:true});
+        });
+        await batch.commit();
+      }
+
+      setStatus(adminStatus, "A recalcular discrepâncias…", "warn");
+      for(const it of items){
+        const ref=colProducts.doc(it.name);
+        await db.runTransaction(async (tx)=>{
+          const snap=await tx.get(ref);
+          const d=snap.exists ? snap.data() : {};
+          const prev=Number(d.prev||0);
+          const neu=Number(d.neu||0);
+          tx.set(ref, {
+            prev, neu,
+            diff: neu - prev,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, {merge:true});
+        });
+      }
+
+      setStatus(adminStatus, `✅ Contagem anterior importada: ${items.length} linhas.`, "ok");
+    }catch(err){
+      setStatus(adminStatus, "Erro no upload: " + (err.message||err), "bad");
+    }finally{
+      prevFile.value="";
+    }
+  });
+
+  btnResetNew.addEventListener("click", async ()=> {
+    if(!await connectFirebase()) return;
+    setStatus(adminStatus, "A resetar nova contagem…", "warn");
+    try{
+      const snap = await colProducts.get();
+      const ids=[]; snap.forEach(d=>ids.push(d.id));
+
+      for(let i=0;i<ids.length;i+=450){
+        const batch=db.batch();
+        ids.slice(i,i+450).forEach(id=>{
+          batch.set(colProducts.doc(id), {
+            neu: 0,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, {merge:true});
+        });
+        await batch.commit();
+      }
+
+      for(const id of ids){
+        await db.runTransaction(async (tx)=>{
+          const ref=colProducts.doc(id);
+          const s=await tx.get(ref);
+          const d=s.exists ? s.data() : {};
+          const prev=Number(d.prev||0);
+          const neu=0;
+          tx.set(ref, {
+            neu, diff: neu - prev,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, {merge:true});
+        });
+      }
+
+      setStatus(adminStatus, "✅ Nova contagem resetada.", "ok");
+    }catch(e){
+      setStatus(adminStatus, "Erro no reset: " + (e.message||e), "bad");
+    }
+  });
+
+  // ================== Entry send / queue ==================
+  async function sendItem(item){
+    const ref = colProducts.doc(item.product);
+    await db.runTransaction(async (tx)=>{
+      const snap = await tx.get(ref);
+      const d = snap.exists ? snap.data() : {};
+      const prev = Number(d.prev||0);
+      const neu0 = Number(d.neu||0);
+      const neu1 = neu0 + Number(item.delta||0);
+
+      tx.set(ref, {
+        name: d.name || item.product,
+        prev,
+        neu: neu1,
+        diff: neu1 - prev,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, {merge:true});
+
+      tx.set(colLogs.doc(), {
+        ts: firebase.firestore.FieldValue.serverTimestamp(),
+        who: item.who,
+        product: item.product,
+        delta: Number(item.delta||0)
+      });
+    });
+  }
+
+  async function addDelta(delta){
+    delta = Number(delta||0);
+    if(!(delta>0)){ setStatus(status, "Quantidade inválida.", "warn"); return; }
+    const auth = firebase.auth();
+    const user = auth.currentUser;
+    const nm = user ? (user.email || user.uid) : "desconhecido";
+if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search.focus(); return; }
+    if(!await connectFirebase()) return;
+
+    const item = { ts: Date.now(), who: nm, product: selectedProduct, delta: delta };
+    try{
+      await sendItem(item);
+      setStatus(status, `✅ Registado: ${selectedProduct} +${delta} (por ${nm}).`, "ok");
+      qty.value="";
+      refreshProductStats(true);
+    }catch(err){
+      const q=loadQueue(); q.push(item); saveQueue(q);
+      setStatus(status, `Sem rede/erro: guardado para sincronizar (${q.length} pendentes).`, "warn");
+    }
+  }
+
+  document.querySelectorAll(".quick").forEach(b=> b.addEventListener("click", ()=>addDelta(Number(b.dataset.add))));
+  btnAddCustom.addEventListener("click", ()=> {
+    const v=Number(qty.value||0);
+    if(!(v>0)){ setStatus(status, "Introduz uma quantidade > 0.", "warn"); qty.focus(); return; }
+    addDelta(v);
+  });
+  qty.addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); btnAddCustom.click(); } });
+
+  async function syncQueue(){
+    const q=loadQueue();
+    if(!q.length){ setStatus(status, "Sem pendentes.", "ok"); return; }
+    if(!await connectFirebase()) return;
+
+    setStatus(status, `A sincronizar ${q.length} pendentes…`, "warn");
+    let ok=0; const left=[];
+    for(const item of q){
+      try{ await sendItem(item); ok++; }
+      catch(e){ left.push(item); }
+    }
+    saveQueue(left);
+    if(left.length===0) setStatus(status, `✅ Sincronização concluída. Enviados: ${ok}.`, "ok");
+    else setStatus(status, `⚠ Sincronização parcial. Enviados: ${ok}. Pendentes: ${left.length}.`, "warn");
+    refreshProductStats(true);
+  }
+  btnSync.addEventListener("click", syncQueue);
+
+  btnClearSel.addEventListener("click", ()=> {
+    selectedProduct=null; selected.value=""; search.value=""; qty.value="";
+    localStorage.removeItem(SELKEY);
+    prevQty.textContent="—"; newQty.textContent="—"; diffQty.textContent="—";
+    diffQty.style.color="rgba(255,255,255,.88)";
+    setStatus(status, "Seleção limpa.", "ok");
+    search.focus();
+  });
+
+  // ================== Stats display ==================
+  function refreshProductStats(){
+    if(!selectedProduct) return;
+    const found = lastProducts.find(x=>x.id===selectedProduct);
+    if(!found) return;
+    const prev=found.prev||0;
+    const neu=found.neu||0;
+    const diff=neu-prev;
+    prevQty.textContent=fmt(prev);
+    newQty.textContent=fmt(neu);
+    diffQty.textContent = diff===0 ? "0" : (diff>0 ? ("+"+fmt(diff)) : String(diff));
+    diffQty.style.color = diff===0 ? "rgba(255,255,255,.88)" : (diff>0 ? "var(--ok)" : "var(--bad)");
+  }
+
+  // ================== Dashboard ==================
+  function rebuildDashboard(){
+    if(!connected){
+      setStatus(dashStatus, "Ligue o Firestore no Admin.", "warn");
+      discCount.textContent="—";
+      discBody.innerHTML=`<tr><td colspan="4" style="color:var(--muted);padding:12px">Sem dados. Ligue no Admin.</td></tr>`;
+      return;
+    }
+    const filt=normalize(dashFilter.value).toLowerCase();
+    const rows = lastProducts.map(x=> {
+      const diff = (x.neu||0) - (x.prev||0);
+      return { product:x.name, prev:x.prev||0, neu:x.neu||0, diff };
+    }).filter(r=> {
+      if(filt && !r.product.toLowerCase().includes(filt)) return false;
+      return r.diff !== 0;
+    });
+    rows.sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));
+    discCount.textContent=String(rows.length);
+
+    if(!rows.length){
+      discBody.innerHTML=`<tr><td colspan="4" style="color:var(--muted);padding:12px">Sem discrepâncias.</td></tr>`;
+      setStatus(dashStatus, "Atualizado (sem discrepâncias).", "ok");
+      return;
+    }
+    discBody.innerHTML = rows.slice(0,140).map(r=> {
+      const cls = r.diff>0 ? "diffpos" : "diffneg";
+      const diffText = r.diff===0 ? "0" : (r.diff>0 ? ("+"+fmt(r.diff)) : String(r.diff));
+      return `<tr>
+        <td title="${escapeHtml(r.product)}">${escapeHtml(r.product)}</td>
+        <td class="mono">${fmt(r.prev)}</td>
+        <td class="mono">${fmt(r.neu)}</td>
+        <td class="mono ${cls}">${diffText}</td>
+      </tr>`;
+    }).join("") + (rows.length>140 ? `<tr><td colspan="4" style="color:var(--muted);padding:12px">(a mostrar 140 de ${rows.length})</td></tr>` : "");
+    setStatus(dashStatus, "Atualizado.", "ok");
+  }
+  dashFilter.addEventListener("input", ()=>rebuildDashboard());
+
+  // ================== Exports ==================
+  btnExportDiff.addEventListener("click", ()=> {
+    const rows = lastProducts.map(x=> {
+      const diff=(x.neu||0)-(x.prev||0);
+      return { product:x.name, prev:x.prev||0, neu:x.neu||0, diff };
+    }).filter(r=>r.diff!==0);
+
+    const header="Produto,Anterior,Nova,Dif\n";
+    const body = rows.map(r=> {
+      const p = (r.product.includes(",") || r.product.includes('"')) ? '"' + r.product.replaceAll('"','""') + '"' : r.product;
+      return `${p},${r.prev},${r.neu},${r.diff}`;
+    }).join("\n") + "\n";
+    const stamp=new Date().toISOString().slice(0,10);
+    downloadText(`discrepancias_${stamp}.csv`, header+body);
+    setStatus(dashStatus, "CSV exportado.", "ok");
+  });
+
+  btnExportNew.addEventListener("click", ()=> {
+    const map = new Map(lastProducts.map(x=>[x.id,x]));
+    const header="Produto,Qty\n";
+    const lines=[];
+    for(const p of PRODUCTS){
+      const d=map.get(p);
+      const q=d ? (d.neu||0) : 0;
+      const safe=(p.includes(",")||p.includes('"')) ? '"' + p.replaceAll('"','""') + '"' : p;
+      lines.push(`${safe},${q}`);
+    }
+    const stamp=new Date().toISOString().slice(0,10);
+    downloadText(`contagem_nova_${stamp}.csv`, header+lines.join("\n")+"\n");
+    setStatus(dashStatus, "CSV exportado.", "ok");
+  });
+
+  
+  // ================== Gate: login obrigatório antes de usar ==================
+  function showGate(msg="", kind="warn"){
+    document.body.classList.add("locked");
+    loginGate.style.display="flex";
+    if(msg) setStatus(gateStatus, msg, kind);
+  }
+  function hideGate(){
+    loginGate.style.display="none";
+    document.body.classList.remove("locked");
+  }
+
+  // init firebase core (idempotente)
+  function initFirebaseCore(){
+    try{ firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG); }catch(e){}
+  }
+
+  async function gateSignIn(){
+    try{
+      setStatus(gateStatus, "A entrar…", "warn");
+      const auth = firebase.auth();
+      const email = (gateEmail.value||"").trim();
+      const pass  = gatePass.value||"";
+      if(!email || !pass){ setStatus(gateStatus, "Preencha email e password.", "warn"); return; }
+
+      // lembrar email
+      try{ localStorage.setItem("inv_auth_email_v1", email); }catch(e){}
+
+      // persistência local (best-effort)
+      try{ await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(e){}
+
+      await auth.signInWithEmailAndPassword(email, pass);
+      setStatus(gateStatus, "✅ Autenticado. A iniciar…", "ok");
+    }catch(e){
+      setStatus(gateStatus, "Erro login: " + (e.code ? (e.code + " — ") : "") + (e.message||e), "bad");
+      try{ console.error("Login error:", e); }catch(_){}
+    }
+  }
+
+  gateLogin.addEventListener("click", ()=>gateSignIn());
+  gatePass.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); gateSignIn(); }});
+// Sempre que o estado de autenticação muda, desbloqueia/bloqueia
+  function setupAuthListener(){
+    const auth = firebase.auth();
+    auth.onAuthStateChanged(async (user)=>{
+      if(user){
+        // mostrar utilizador autenticado
+        if(whoDisplay) whoDisplay.value = (user.email || user.uid);
+        hideGate();
+        // ligar ao firestore e arrancar subscrições
+        await connectFirebase();
+      }else{
+        if(whoDisplay) whoDisplay.value = "—";
+        // reset app state quando sai
+        connected=false;
+        if(unsubProducts){ try{unsubProducts();}catch(e){} unsubProducts=null; }
+        lastProducts=[];
+        rebuildDashboard();
+        refreshProductStats(true);
+        showGate("Faça login para iniciar.", "warn");
+      }
+    });
+  }
+
+// ================== Init ==================
+  (function init(){
+    // init firebase e listener de autenticação (gate)
+    initFirebaseCore();
+    setupAuthListener();
+
+    // prefill email
+    try{ gateEmail.value = localStorage.getItem("inv_auth_email_v1") || ""; }catch(e){}
+// email lembrado (para facilitar login)
+    if(authEmail) authEmail.value = loadRememberedEmail();
+const cfg=loadCfg();
+    namespaceInput.value = cfg.namespace || "inv_2026_02";
+
+    saveQueue(loadQueue());
+
+    const lastSel=localStorage.getItem(SELKEY) || "";
+    if(lastSel){ selectedProduct=lastSel; selected.value=lastSel; }
+
+    // Auto tab
+    if(window.innerWidth < 900) setTab("entry"); else setTab("dash");
+  })();
+</script>
+</body>
+</html>
