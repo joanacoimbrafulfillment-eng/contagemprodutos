@@ -47,10 +47,6 @@
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
     .diffpos{color:var(--ok);font-weight:900} .diffneg{color:var(--bad);font-weight:900}
     .small{color:var(--muted);font-size:12px;line-height:1.35;margin-top:8px} .hide{display:none!important}
-    .sugg{position:absolute;z-index:60;background:rgba(2,6,23,.96);border:1px solid rgba(148,163,184,.22);border-radius:16px;box-shadow:0 18px 46px rgba(0,0,0,.45);
-      padding:6px;max-height:320px;overflow:auto;display:none}
-    .sugg .item{padding:10px 10px;border-radius:14px;cursor:pointer;color:rgba(255,255,255,.92);font-size:14px}
-    .sugg .item.active{background:rgba(56,189,248,.20)}
     .hint{margin-top:10px;padding:10px 12px;border-radius:14px;border:1px solid rgba(148,163,184,.22);background:rgba(148,163,184,.06);color:rgba(255,255,255,.9);font-size:12px;line-height:1.35}
     .kbd{font-family:ui-monospace,monospace;background:rgba(148,163,184,.12);padding:1px 6px;border-radius:8px;border:1px solid rgba(148,163,184,.22)}
   
@@ -80,7 +76,47 @@
     /* (Opcional) esconder login duplicado no Admin */
     #authEmail, #authPass, #btnLogin, #btnRegister, #authStatus { display:none !important; }
 
-  </style>
+  
+    /* Pesquisa rápida (mobile): fundo preto para máximo contraste */
+    .sugg{
+      position:fixed;
+      z-index:999;
+      background:#000 !important;
+      border:2px solid rgba(255,255,255,.35) !important;
+      border-radius:16px;
+      box-shadow:0 18px 46px rgba(0,0,0,.65);
+      padding:8px;
+      max-height:46vh;
+      overflow:auto;
+      display:none;
+      -webkit-overflow-scrolling:touch;
+    }
+    .sugg .item{
+      background:#000 !important;
+      color:#fff !important;
+      padding:12px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      font-size:16px;
+      font-weight:900;
+      border:1px solid rgba(255,255,255,.12);
+      margin:6px 6px;
+    }
+    .sugg .item:hover{ background:#0b0b0b !important; }
+    .sugg .item.active{
+      background:#111 !important;
+      outline:3px solid rgba(56,189,248,.45);
+      border-color:rgba(56,189,248,.55);
+    }
+
+
+    /* Mobile: zona de procura fixa no topo para a lista ficar visível */
+    .entryTop{position:sticky;top:0;z-index:40;background:rgba(2,6,23,.98);padding:10px;border-radius:16px;border:2px solid rgba(255,255,255,.10);backdrop-filter: blur(10px);}
+    @media (max-width:700px){
+      .entryTop{top:0}
+    }
+
+</style>
 
   <!-- Firebase (compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -133,7 +169,7 @@
 <div class="wrap">
   <!-- ENTRY -->
   <section class="card" id="panelEntry">
-    <div class="row">
+    <div class="row entryTop">
       <div>
         <label>Utilizador</label>
         <input id="whoDisplay" type="text" readonly placeholder="—"/>
@@ -554,7 +590,38 @@ if(which==="dash") rebuildDashboard();
   tabImport.addEventListener("click", ()=>setTab("import"));
   tabLogs.addEventListener("click", ()=>setTab("logs"));
 // ================== Suggestions ==================
-  function positionSugg(){ const r=search.getBoundingClientRect(); sugg.style.left=(r.left+window.scrollX)+"px"; sugg.style.top=(r.bottom+window.scrollY+8)+"px"; sugg.style.width=r.width+"px"; }
+  function positionSugg(){
+    const margin=6;
+
+    // Em mobile, prende a lista logo abaixo da zona de procura (entryTop),
+    // para nunca ficar no canto inferior tapada pelo teclado.
+    const isMobile = window.innerWidth <= 700;
+    const topAnchor = document.querySelector("#panelEntry .entryTop");
+
+    if(isMobile && topAnchor){
+      const ar = topAnchor.getBoundingClientRect();
+      const top = Math.min(window.innerHeight - 160, ar.bottom + margin);
+      const left = Math.max(margin, ar.left);
+      const width = Math.min(ar.width, window.innerWidth - margin*2);
+
+      sugg.style.left = left + "px";
+      sugg.style.top  = top + "px";
+      sugg.style.width = width + "px";
+      sugg.style.maxHeight = Math.max(160, window.innerHeight - top - margin) + "px";
+      return;
+    }
+
+    // fallback: posição relativa ao input de pesquisa
+    const r=search.getBoundingClientRect();
+    const maxW=Math.min(r.width, window.innerWidth - margin*2);
+    const left=Math.min(Math.max(margin, r.left), window.innerWidth - maxW - margin);
+    const top = Math.min(window.innerHeight - 160, r.bottom + margin);
+
+    sugg.style.left = left + "px";
+    sugg.style.top  = top + "px";
+    sugg.style.width = maxW + "px";
+    sugg.style.maxHeight = Math.max(160, window.innerHeight - top - margin) + "px";
+  }
   function closeSugg(){ sugg.style.display="none"; activeIndex=-1; }
   function openSugg(){ if(!results.length){closeSugg();return;} positionSugg(); sugg.style.display="block"; }
   function renderSugg(){
