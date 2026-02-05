@@ -79,7 +79,7 @@
   
     /* Pesquisa rápida (mobile): fundo preto para máximo contraste */
     .sugg{
-      position:fixed;
+      position:absolute;
       z-index:999;
       background:#000 !important;
       border:2px solid rgba(255,255,255,.35) !important;
@@ -114,6 +114,55 @@
     .entryTop{position:sticky;top:0;z-index:40;background:rgba(2,6,23,.98);padding:10px;border-radius:16px;border:2px solid rgba(255,255,255,.10);backdrop-filter: blur(10px);}
     @media (max-width:700px){
       .entryTop{top:0}
+    }
+
+
+    /* ====== Melhorias MOBILE (Entrada) ====== */
+    @media (max-width:700px){
+      /* Tabs: scroll horizontal (não quebra linhas) */
+      .tabs{
+        flex-wrap:nowrap;
+        overflow:auto;
+        -webkit-overflow-scrolling:touch;
+        padding-bottom:6px;
+        gap:6px;
+      }
+      .tab{flex:0 0 auto}
+
+      /* Painel Entry: dar espaço para barra fixa no fundo */
+      #panelEntry{ padding-bottom: 210px; }
+
+      /* Barra de ações fixa (fundo) */
+      #entryActions{
+        position:fixed;
+        left:12px; right:12px;
+        bottom: calc(12px + env(safe-area-inset-bottom));
+        z-index:60;
+        border-radius: 18px;
+        border: 1px solid rgba(148,163,184,.22);
+        background: rgba(2,6,23,.96);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 18px 60px rgba(0,0,0,.55);
+        padding:10px;
+      }
+      #entryActions .row{ grid-template-columns: 1fr; gap:10px; }
+      #entryActions .row.qtyRow{ grid-template-columns: 1fr auto; }
+      #entryActions button{ border-radius: 16px; }
+      #entryActions .gridQuick{ grid-template-columns: repeat(4, 1fr); margin-top: 8px; gap:8px; }
+      #entryActions .gridQuick button{ padding:12px 10px; font-size:16px; }
+
+      /* Campo de produto selecionado: mais legível */
+      #selected{ font-size:14px; }
+    }
+
+
+    /* ====== Sugestões ancoradas à pesquisa ====== */
+    #searchWrap{position:relative}
+    #searchWrap .sugg{
+      left:0; right:0;
+      top: calc(100% + 6px);
+      width:auto;
+      max-height:46vh;
     }
 
 </style>
@@ -175,10 +224,11 @@
         <input id="whoDisplay" type="text" readonly placeholder="—"/>
         <div class="small">Vem automaticamente do login.</div>
       </div>
-      <div>
+      <div id="searchWrap">
         <label>Produto (pesquisa rápida)</label>
         <input id="search" type="text" placeholder="Ex.: SKU229 ou 'JUICER'"/>
         <div class="small">Enter escolhe • ↑↓ navegam • Esc limpa</div>
+        <div class="sugg" id="sugg"></div>
       </div>
     </div>
 
@@ -187,20 +237,38 @@
         <label>Produto selecionado</label>
         <input id="selected" type="text" readonly placeholder="Nenhum produto selecionado"/>
       </div>
-      <div>
+      <div class="hide" aria-hidden="true">
         <label>Quantidade (personalizada)</label>
         <div class="row" style="grid-template-columns:1fr auto;gap:10px">
-          <input id="qty" type="number" inputmode="numeric" step="1" min="0" placeholder="0"/>
-          <button id="btnAddCustom" style="min-width:140px">Adicionar</button>
+          <input type="number" inputmode="numeric" step="1" min="0" placeholder="0" disabled/>
+          <button style="min-width:140px" disabled>Adicionar</button>
         </div>
       </div>
     </div>
 
-    <div class="gridQuick">
-      <button class="quick" data-add="1">+1</button>
-      <button class="quick" data-add="2">+2</button>
-      <button class="quick" data-add="5">+5</button>
-      <button class="quick" data-add="10">+10</button>
+    <!-- Ações (no desktop ficam na página; no mobile ficam fixas em baixo) -->
+    <div id="entryActions">
+      <div class="row qtyRow" style="grid-template-columns:1fr auto;gap:10px">
+        <div>
+          <label>Quantidade</label>
+          <input id="qty" type="number" inputmode="numeric" step="1" min="0" placeholder="0"/>
+        </div>
+        <div style="display:flex;align-items:end">
+          <button id="btnAddCustom" style="min-width:140px">Adicionar</button>
+        </div>
+      </div>
+
+      <div class="gridQuick">
+        <button class="quick" data-add="1">+1</button>
+        <button class="quick" data-add="2">+2</button>
+        <button class="quick" data-add="5">+5</button>
+        <button class="quick" data-add="10">+10</button>
+      </div>
+
+      <div class="gridQuick" style="grid-template-columns:1fr 1fr; margin-top:10px">
+        <button id="btnSync" class="secondary">Sincronizar pendentes</button>
+        <button id="btnClearSel" class="secondary">Limpar seleção</button>
+      </div>
     </div>
 
     <div style="margin-top:10px">
@@ -210,10 +278,6 @@
 
     <div id="status" class="status">Abra Admin, clique “Ligar”, e depois “Inicializar produtos”.</div>
 
-    <div class="gridQuick" style="grid-template-columns:1fr 1fr; margin-top:12px">
-      <button id="btnSync" class="secondary">Sincronizar pendentes</button>
-      <button id="btnClearSel" class="secondary">Limpar seleção</button>
-    </div>
 
     <div class="hint"><b>Multiutilizador:</b> cada “Adicionar” atualiza o Firestore com <b>transaction</b>, garantindo soma correta.</div>
   </section>
@@ -421,7 +485,7 @@
 
 </div>
 
-<div class=\"sugg\" id="sugg"></div>
+
 
 <script>
   // ================== Produtos ==================
@@ -591,36 +655,19 @@ if(which==="dash") rebuildDashboard();
   tabLogs.addEventListener("click", ()=>setTab("logs"));
 // ================== Suggestions ==================
   function positionSugg(){
-    const margin=6;
+    // A lista está ancorada ao campo de pesquisa (#searchWrap) via CSS (position:absolute).
+    // Só ajustamos a altura máxima consoante o espaço disponível no ecrã.
+    const margin = 10;
+    const wrap = document.getElementById("searchWrap");
+    if(!wrap) return;
 
-    // Em mobile, prende a lista logo abaixo da zona de procura (entryTop),
-    // para nunca ficar no canto inferior tapada pelo teclado.
-    const isMobile = window.innerWidth <= 700;
-    const topAnchor = document.querySelector("#panelEntry .entryTop");
-
-    if(isMobile && topAnchor){
-      const ar = topAnchor.getBoundingClientRect();
-      const top = Math.min(window.innerHeight - 160, ar.bottom + margin);
-      const left = Math.max(margin, ar.left);
-      const width = Math.min(ar.width, window.innerWidth - margin*2);
-
-      sugg.style.left = left + "px";
-      sugg.style.top  = top + "px";
-      sugg.style.width = width + "px";
-      sugg.style.maxHeight = Math.max(160, window.innerHeight - top - margin) + "px";
-      return;
-    }
-
-    // fallback: posição relativa ao input de pesquisa
-    const r=search.getBoundingClientRect();
-    const maxW=Math.min(r.width, window.innerWidth - margin*2);
-    const left=Math.min(Math.max(margin, r.left), window.innerWidth - maxW - margin);
-    const top = Math.min(window.innerHeight - 160, r.bottom + margin);
-
-    sugg.style.left = left + "px";
-    sugg.style.top  = top + "px";
-    sugg.style.width = maxW + "px";
-    sugg.style.maxHeight = Math.max(160, window.innerHeight - top - margin) + "px";
+    const r = wrap.getBoundingClientRect();
+    const spaceBelow = Math.max(160, window.innerHeight - r.bottom - margin);
+    sugg.style.maxHeight = Math.min(spaceBelow, window.innerHeight*0.6) + "px";
+    // Garantir que fica visível e alinhado
+    sugg.style.left = "0px";
+    sugg.style.top  = (wrap.offsetHeight + 6) + "px";
+    sugg.style.width = "100%";
   }
   function closeSugg(){ sugg.style.display="none"; activeIndex=-1; }
   function openSugg(){ if(!results.length){closeSugg();return;} positionSugg(); sugg.style.display="block"; }
