@@ -350,10 +350,12 @@
       </div>
       <div>
         <label>Ações de contagem</label>
-        <div class="gridQuick" style="grid-template-columns:1fr 1fr">
+        <div class="gridQuick" style="grid-template-columns:1fr 1fr 1fr">
           <button id="btnOpenSession" class="secondary">Abrir</button>
           <button id="btnNewSession" class="danger">Nova contagem</button>
+          <button id="btnDeleteSession" class="danger">Apagar</button>
         </div>
+        <div class="small" style="margin-top:6px">“Apagar” remove a contagem selecionada (produtos + logs). Não dá para recuperar.</div>
         <div class="small">Use “Nova contagem” para começar do zero sem misturar com as antigas.</div>
       </div>
     </div>
@@ -395,6 +397,17 @@
     </div>
 
     <div id="adminStatus" class="status">1) Ligar  2) Inicializar produtos  3) (Opcional) Upload contagem anterior</div>
+    <div class="hint" style="margin-top:10px">
+      <b>Listagens:</b><br/>
+      • <b>Contagem anterior</b> (Prev) faz upload aqui.<br/>
+      • <b>Nova listagem</b> (Neu) faz upload no separador <b>Importar nova</b>.<br/>
+      <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+        <button id="btnGoImport" class="secondary">Abrir “Importar nova”</button>
+        <button id="btnGoDash" class="secondary">Ver discrepâncias no Dashboard</button>
+      </div>
+      <div class="small" style="margin-top:6px">Dica: para “introduzir nova listagem e depois somar”, no Importar nova usa <b>Substituir</b> (baseline) e depois lança contagens no mobile.</div>
+    </div>
+
 
     <div class="hint">
       <b>Checklist Firebase:</b><br/>
@@ -402,6 +415,18 @@
       2) Authentication → <span class="kbd">Email/Password</span> ativado<br/>
       3) Regras: permitir read/write só a utilizadores autenticados
     </div>
+    <details class="hint" style="margin-top:10px">
+      <summary><b>Regras Firestore recomendadas (copiar/colar)</b></summary>
+      <div class="small" style="margin:8px 0 10px 0;line-height:1.45">
+        Mantém o modelo de <b>um único login</b>, mas: bloqueia <b>delete</b>, valida campos e torna os <b>logs append-only</b>.
+      </div>
+      <textarea id="rulesBox" spellcheck="false" style="width:100%;min-height:260px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;font-size:12px;line-height:1.35;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.25);color:inherit"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button id="btnCopyRules" class="secondary">Copiar regras</button>
+        <div class="small">Cole no Firebase → Firestore Database → Rules → Publish.</div>
+      </div>
+    </details>
+
   </section>
 
   <!-- IMPORT NEW COUNT -->
@@ -510,6 +535,9 @@
   const panelImport=document.getElementById('panelImport');
   const tabLogs=document.getElementById('tabLogs');
   const panelLogs=document.getElementById('panelLogs');
+  const btnGoImport=document.getElementById('btnGoImport');
+  const btnGoDash=document.getElementById('btnGoDash');
+
 const search=document.getElementById('search');
   const selected=document.getElementById('selected');
   const whoDisplay=document.getElementById('whoDisplay');
@@ -553,11 +581,29 @@ const btnInit=document.getElementById('btnInit');
   const btnResetNew=document.getElementById('btnResetNew');
   const adminStatus=document.getElementById('adminStatus');
 
+    const rulesBox=document.getElementById('rulesBox');
+  const btnCopyRules=document.getElementById('btnCopyRules');
+  if(rulesBox) rulesBox.value = "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n\n    function signedIn() { return request.auth != null; }\n\n    // Allow only known fields + basic type/constraints\n    function isSessionDocValid() {\n      // session docs: {name, createdAt, updatedAt, createdBy}\n      return request.resource.data.keys().hasOnly(['name','createdAt','updatedAt','createdBy']) &&\n             request.resource.data.name is string &&\n             request.resource.data.name.size() >= 1 &&\n             request.resource.data.name.size() <= 80 &&\n             request.resource.data.createdBy is string &&\n             request.resource.data.createdBy.size() <= 120 &&\n             request.resource.data.createdAt == request.time &&\n             request.resource.data.updatedAt == request.time;\n    }\n\n    function isSessionUpdateValid() {\n      return request.resource.data.keys().hasOnly(['name','createdAt','updatedAt','createdBy']) &&\n             request.resource.data.name is string &&\n             request.resource.data.name.size() >= 1 &&\n             request.resource.data.name.size() <= 80 &&\n             request.resource.data.createdBy == resource.data.createdBy &&\n             request.resource.data.createdAt == resource.data.createdAt &&\n             request.resource.data.updatedAt == request.time;\n    }\n\n    function isProductDocValid() {\n      return request.resource.data.keys().hasOnly(['neu','prev','diff','lastWho','lastLogAt']) &&\n             request.resource.data.neu is number &&\n             request.resource.data.prev is number &&\n             request.resource.data.diff is number &&\n             request.resource.data.neu >= 0 &&\n             request.resource.data.prev >= 0 &&\n             // keep diff consistent\n             request.resource.data.diff == (request.resource.data.neu - request.resource.data.prev) &&\n             request.resource.data.lastWho is string &&\n             request.resource.data.lastWho.size() <= 120 &&\n             request.resource.data.lastLogAt is timestamp;\n    }\n\n    function isLogDocValid() {\n      return request.resource.data.keys().hasOnly(['when','who','product','delta','source']) &&\n             request.resource.data.when == request.time &&\n             request.resource.data.who is string &&\n             request.resource.data.who.size() <= 120 &&\n             request.resource.data.product is string &&\n             request.resource.data.product.size() >= 1 &&\n             request.resource.data.product.size() <= 120 &&\n             request.resource.data.delta is number &&\n             request.resource.data.delta > 0 &&\n             request.resource.data.delta <= 100000 &&\n             request.resource.data.source is string &&\n             request.resource.data.source.size() <= 40;\n    }\n\n    // Default: deny everything\n    match /{document=**} {\n      allow read, write: if false;\n    }\n\n    // Namespace pattern used by the app: <NAMESPACE>_sessions/<sessionId>/(products|logs)/...\n    match /{ns}_sessions/{sessionId} {\n      allow read: if signedIn();\n\n      // Anyone signed-in can create/update sessions (single shared login model)\n      allow create: if signedIn() && isSessionDocValid();\n      allow update: if signedIn() && isSessionUpdateValid();\n\n      // Avoid accidental deletions\n      allow delete: if false;\n\n      match /products/{productId} {\n        allow read: if signedIn();\n        // Create or update only with valid schema and consistent diff\n        allow create, update: if signedIn() && isProductDocValid();\n        allow delete: if false;\n      }\n\n      match /logs/{logId} {\n        allow read: if signedIn();\n        // Logs are append-only\n        allow create: if signedIn() && isLogDocValid();\n        allow update, delete: if false;\n      }\n    }\n  }\n}\n";
+  if(btnCopyRules && rulesBox) btnCopyRules.addEventListener('click', async ()=>{
+    try{
+      await navigator.clipboard.writeText(rulesBox.value);
+      setStatus(adminStatus, "Regras copiadas para a área de transferência.", "ok");
+    }catch(e){
+      // fallback
+      rulesBox.focus();
+      rulesBox.select();
+      document.execCommand('copy');
+      setStatus(adminStatus, "Regras selecionadas (Ctrl+C / ⌘C).", "ok");
+    }
+  });
+
+
   
   // Sessões (contagens)
   const sessionSelect=document.getElementById('sessionSelect');
   const btnOpenSession=document.getElementById('btnOpenSession');
   const btnNewSession=document.getElementById('btnNewSession');
+  const btnDeleteSession=document.getElementById('btnDeleteSession');
   const sessionStatus=document.getElementById('sessionStatus');
   const activeSessionLabel=document.getElementById('activeSessionLabel');
   // Import nova contagem
@@ -589,6 +635,23 @@ const sugg=document.getElementById('sugg');
 
   // ================== Helpers ==================
   function normalize(s){ return (s??"").toString().replace(/\s+/g," ").trim(); }
+  function canonKey(s){
+    // normaliza para comparação (minúsculas + sem acentos)
+    return normalize(s).toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  }
+  const PRODUCT_CANON = (function(){
+    const m=new Map();
+    for(const p of PRODUCTS){
+      const k=canonKey(p);
+      if(!m.has(k)) m.set(k,p);
+    }
+    return m;
+  })();
+  function canonicalName(raw){
+    const k=canonKey(raw);
+    return PRODUCT_CANON.get(k) || normalize(raw);
+  }
   function escapeHtml(str){ return (str??"").toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
   function fmt(n){ return Number(n||0).toLocaleString("pt-PT"); }
   function setStatus(el,msg,kind=""){ el.textContent=msg; el.className="status"+(kind?(" "+kind):""); }
@@ -624,13 +687,13 @@ const sugg=document.getElementById('sugg');
   function csvEscape(v){
     const s = (v===null || v===undefined) ? "" : String(v);
     // Escape quotes by doubling; wrap in quotes if contains comma, quote, or newline
-    if(/[",\n\r]/.test(s)){
+    if(/[;"\n\r]/.test(s)){
       return '"' + s.replace(/"/g,'""') + '"';
     }
     return s;
   }
   function csvRow(arr){
-    return arr.map(csvEscape).join(",") + "\n";
+    return arr.map(csvEscape).join(";") + "\n";
   }
 
   // ================== Tabs ==================
@@ -653,6 +716,9 @@ if(which==="dash") rebuildDashboard();
   tabAdmin.addEventListener("click", ()=>setTab("admin"));
   tabImport.addEventListener("click", ()=>setTab("import"));
   tabLogs.addEventListener("click", ()=>setTab("logs"));
+  if(btnGoImport) btnGoImport.addEventListener('click', ()=>setTab('import'));
+  if(btnGoDash) btnGoDash.addEventListener('click', ()=>setTab('dash'));
+
 // ================== Suggestions ==================
   function positionSugg(){
     // A lista está ancorada ao campo de pesquisa (#searchWrap) via CSS (position:absolute).
@@ -760,8 +826,8 @@ if(which==="dash") rebuildDashboard();
       const auth = firebase.auth();
       db = firebase.firestore();
 
-      // Offline persistence (best-effort)
-      try{ await db.enablePersistence({synchronizeTabs:true}); }catch(e){}
+      // Offline persistence (IndexedDB) was removed to avoid deprecation warnings.
+      // App works normally online. If you need offline cache again, we can migrate to the new Firestore cache API.
 
       // Exigir login (gate já trata disto)
       if(!auth.currentUser){
@@ -827,7 +893,7 @@ connected=true;
         const arr=[];
         snap.forEach(doc=>{
           const d=doc.data()||{};
-          arr.push({ id: doc.id, name: d.name||doc.id, prev: Number(d.prev||0), neu: Number(d.neu||0), lastWho: d.lastWho||"" });
+          arr.push({ id: doc.id, name: d.name||doc.id, prev: Number(d.prev||0), neu: Number(d.neu||0), uploadNew: Number(d.uploadNew||0), lastWho: d.lastWho||"" });
         });
         lastProducts=arr;
         if(!panelDash.classList.contains("hide")) rebuildDashboard();
@@ -935,6 +1001,57 @@ connected=true;
     }
   }
 
+
+  // Apagar contagem (sessão) selecionada — remove doc da sessão + subcoleções products/logs
+  async function deleteSelectedSession(){
+    if(!await connectFirebase()){
+      setStatus(sessionStatus, "Precisa de login + ligação ao Firebase para apagar.", "warn");
+      return;
+    }
+    const id = sessionSelect.value;
+    if(!id){
+      setStatus(sessionStatus, "Selecione uma contagem para apagar.", "warn");
+      return;
+    }
+    const name = (sessionSelect.options[sessionSelect.selectedIndex]?.textContent || id).trim();
+    const ok = confirm("APAGAR esta contagem?\n\n" + name + "\n\nIsto remove produtos e logs e NÃO dá para recuperar.");
+    if(!ok) return;
+
+    try{
+      setStatus(sessionStatus, "A apagar… (pode demorar em contagens grandes)", "warn");
+      const ns = getNamespace();
+      const sessRef = db.collection(ns + "_sessions").doc(id);
+
+      // apaga subcoleções em batches
+      await deleteCollectionInBatches(sessRef.collection("products"), 450);
+      await deleteCollectionInBatches(sessRef.collection("logs"), 450);
+
+      // apaga doc da sessão
+      await sessRef.delete();
+
+      // refresca UI
+      if(currentSessionId === id) currentSessionId = "";
+      await loadSessions();
+      setStatus(sessionStatus, "Contagem apagada: " + name, "ok");
+    }catch(e){
+      console.error(e);
+      setStatus(sessionStatus, "Erro ao apagar: " + (e.message||e), "bad");
+    }
+  }
+
+  async function deleteCollectionInBatches(colRef, batchSize){
+    // loop até não haver mais docs
+    while(true){
+      const snap = await colRef.orderBy(firebase.firestore.FieldPath.documentId()).limit(batchSize).get();
+      if(snap.empty) break;
+      const batch = db.batch();
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      // pequena cedência ao UI
+      await new Promise(r=>setTimeout(r, 0));
+    }
+  }
+
   async function openSelectedSession(){
     if(!await connectFirebase()){
       setStatus(sessionStatus, "Precisa de login + ligação ao Firebase.", "warn");
@@ -956,6 +1073,7 @@ connected=true;
   }
 
   if(btnNewSession) btnNewSession.addEventListener("click", ()=>createNewSession());
+  btnDeleteSession.addEventListener("click", ()=>deleteSelectedSession());
   if(btnOpenSession) btnOpenSession.addEventListener("click", ()=>openSelectedSession());
 
 
@@ -1038,7 +1156,7 @@ connected=true;
       const items=[];
       for(let i=start;i<rows.length;i++){
         const r=rows[i]; if(!r || r.length<2) continue;
-        const name=normalize(r[0]); const q=parseQty(r[1]);
+        const name=canonicalName(r[0]); const q=parseQty(r[1]);
         if(name) items.push({name,q});
       }
 
@@ -1065,9 +1183,9 @@ connected=true;
           const prev=Number(d.prev||0);
           const neu=Number(d.neu||0);
           tx.set(ref, {
-prev, neu,
-            diff: neu - prev,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+              prev, neu,
+              diff: neu - prev,
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           }, {merge:true});
         });
       }
@@ -1119,7 +1237,7 @@ prev, neu,
       const items=[];
       for(let i=start;i<rows.length;i++){
         const r=rows[i]; if(!r || r.length<2) continue;
-        const name=normalize(r[0]); const q=parseQty(r[1]);
+        const name=canonicalName(r[0]); const q=parseQty(r[1]);
         if(name) items.push({name,q});
       }
       if(!items.length){
@@ -1143,6 +1261,7 @@ prev, neu,
             batch.set(colProducts.doc(it.name), {
               name: it.name,
               neu: it.q,
+              uploadNew: it.q,
               lastWho: who,
               lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
               updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -1192,6 +1311,7 @@ prev, neu,
             tx.set(ref, {
               name: d.name || it.name,
               prev,
+              uploadNew: Number(d.uploadNew||0) + Number(it.q||0),
               neu: neu1,
               diff: neu1 - prev,
               lastWho: who,
@@ -1556,13 +1676,15 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
   });
   btnExportNew.addEventListener("click", ()=> {
     const map = new Map(lastProducts.map(x=>[x.id,x]));
-    const header = csvRow(["Produto","QtyNova","UltimoPor"]); 
+    const header = csvRow(["Produto","TotalAtual","TotalUploadNova","TotalOperador","UltimoPor"]); 
     const lines=[];
     for(const p of PRODUCTS){
       const d=map.get(p);
-      const q=d ? (d.neu||0) : 0;
-      const who=d ? (d.lastWho||"") : "";
-      lines.push(csvRow([p, q, who]));
+      const totalAtual = d ? (d.neu||0) : 0;
+      const totalUpload = d ? (d.uploadNew||0) : 0;
+      const totalOperador = Math.max(0, totalAtual - totalUpload);
+      const who = d ? (d.lastWho||"") : "";
+      lines.push(csvRow([p, totalAtual, totalUpload, totalOperador, who]));
     }
     const stamp=new Date().toISOString().slice(0,10);
     downloadText(`contagem_nova_${stamp}.csv`, header + lines.join("") );
@@ -1590,6 +1712,7 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
       const auth = firebase.auth();
       const email = (gateEmail.value||"").trim();
       const pass  = gatePass.value||"";
+      const pass2 = pass.replace(/\s+$/,""); // evita espaços no fim ao colar
       if(!email || !pass){ setStatus(gateStatus, "Preencha email e password.", "warn"); return; }
 
       // lembrar email
@@ -1598,7 +1721,7 @@ if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search
       // persistência local (best-effort)
       try{ await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(e){}
 
-      await auth.signInWithEmailAndPassword(email, pass);
+      await auth.signInWithEmailAndPassword(email, pass2);
       setStatus(gateStatus, "✅ Autenticado. A iniciar…", "ok");
     }catch(e){
       setStatus(gateStatus, "Erro login: " + (e.code ? (e.code + " — ") : "") + (e.message||e), "bad");
