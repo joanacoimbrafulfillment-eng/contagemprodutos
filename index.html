@@ -1,1782 +1,1194 @@
 <!doctype html>
 <html lang="pt">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>Inventário — Multiutilizador (Firestore)</title>
-  <style>
-    :root{--bg:#070b14;--text:#e5e7eb;--muted:#94a3b8;--border:rgba(148,163,184,.18);--shadow:0 14px 40px rgba(0,0,0,.45);
-      --ok:#34d399;--warn:#fbbf24;--bad:#fb7185;--accent:#38bdf8;--r:18px}
-    *{box-sizing:border-box}
-    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);
-      background:radial-gradient(1200px 700px at 12% 0%, rgba(56,189,248,.16), transparent 55%),
-                radial-gradient(900px 550px at 85% 12%, rgba(52,211,153,.10), transparent 55%), var(--bg);min-height:100vh}
-    header{padding:14px 14px 8px;max-width:1120px;margin:0 auto;display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap}
-    h1{margin:0;font-size:18px;letter-spacing:.2px}
-    .sub{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.35;max-width:820px}
-    .wrap{max-width:1120px;margin:0 auto;padding:10px 14px 22px;display:grid;grid-template-columns:1.1fr .9fr;gap:12px}
-    @media (max-width:980px){.wrap{grid-template-columns:1fr}header{align-items:flex-start}}
-    .card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:12px}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    @media (max-width:720px){.row{grid-template-columns:1fr}}
-    label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}
-    input[type="text"],input[type="number"]{width:100%;padding:12px 12px;border-radius:14px;border:1px solid var(--border);background:rgba(2,6,23,.55);color:var(--text);outline:none;font-size:16px}
-    input[type="file"]{width:100%;padding:12px;border-radius:14px;border:1px dashed rgba(148,163,184,.35);background:rgba(2,6,23,.35);color:var(--muted);font-size:14px}
-    .tabs{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .tab{border:1px solid var(--border);border-radius:999px;padding:8px 10px;font-size:12px;color:var(--muted);background:rgba(2,6,23,.35);cursor:pointer;user-select:none}
-    .tab.active{color:rgba(255,255,255,.92);background:rgba(56,189,248,.16);border-color:rgba(56,189,248,.28)}
-    .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(2,6,23,.35);
-      color:var(--muted);font-size:12px;margin:0 10px 10px 0;white-space:nowrap}
-    .pill strong{color:rgba(255,255,255,.92);font-weight:900}
-    .status{margin-top:10px;padding:10px 12px;border-radius:14px;border:1px solid var(--border);background:rgba(2,6,23,.35);color:var(--muted);font-size:12px;line-height:1.35}
-    .status.ok{border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.10);color:rgba(255,255,255,.92)}
-    .status.warn{border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.10);color:rgba(255,255,255,.92)}
-    .status.bad{border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.10);color:rgba(255,255,255,.92)}
-    .gridQuick{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
-    @media (max-width:520px){.gridQuick{grid-template-columns:repeat(2,1fr)}}
-    button{width:100%;border:1px solid var(--border);background:rgba(56,189,248,.16);color:rgba(255,255,255,.92);padding:14px 12px;border-radius:16px;
-      cursor:pointer;font-size:16px;font-weight:900;transition:transform .05s ease, background .15s ease;touch-action:manipulation}
-    button:hover{background:rgba(56,189,248,.22)} button:active{transform:translateY(1px)}
-    button.secondary{background:rgba(148,163,184,.10);font-weight:750;font-size:14px;padding:12px 12px}
-    button.secondary:hover{background:rgba(148,163,184,.14)}
-    button.danger{background:rgba(251,113,133,.16)} button.danger:hover{background:rgba(251,113,133,.22)}
-    table{width:100%;border-collapse:collapse;font-size:12px;overflow:hidden;border-radius:14px;border:1px solid var(--border)}
-    thead th{text-align:left;padding:10px;border-bottom:1px solid var(--border);background:rgba(2,6,23,.45);color:rgba(255,255,255,.9)}
-    tbody td{padding:10px;border-bottom:1px solid rgba(148,163,184,.10);vertical-align:top;color:rgba(255,255,255,.88)}
-    tbody tr:last-child td{border-bottom:none}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-    .diffpos{color:var(--ok);font-weight:900} .diffneg{color:var(--bad);font-weight:900}
-    .small{color:var(--muted);font-size:12px;line-height:1.35;margin-top:8px} .hide{display:none!important}
-    .hint{margin-top:10px;padding:10px 12px;border-radius:14px;border:1px solid rgba(148,163,184,.22);background:rgba(148,163,184,.06);color:rgba(255,255,255,.9);font-size:12px;line-height:1.35}
-    .kbd{font-family:ui-monospace,monospace;background:rgba(148,163,184,.12);padding:1px 6px;border-radius:8px;border:1px solid rgba(148,163,184,.22)}
-  
-    /* Gate (login obrigatório) */
-    .gate{
-      position:fixed; inset:0; z-index:9999;
-      display:flex; align-items:center; justify-content:center;
-      padding:16px;
-      background:rgba(0,0,0,.72);
-      backdrop-filter: blur(8px);
-    }
-    .gate .box{
-      width:min(520px, 100%);
-      border-radius:22px;
-      border:1px solid rgba(148,163,184,.22);
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-      box-shadow:0 18px 60px rgba(0,0,0,.55);
-      padding:14px;
-    }
-    .gate h2{margin:0 0 6px; font-size:18px}
-    .gate p{margin:0 0 10px; color:var(--muted); font-size:12px; line-height:1.35}
-    .gate .row{grid-template-columns:1fr}
-    @media (min-width:640px){ .gate .row{grid-template-columns:1fr 1fr} }
-    .locked header, .locked .wrap{ filter: blur(6px); pointer-events:none; user-select:none; }
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Inventário</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c10;
+  --surface: #111318;
+  --surface2: #181c24;
+  --border: rgba(255,255,255,.08);
+  --border2: rgba(255,255,255,.14);
+  --text: #f0f2f5;
+  --muted: #7a8494;
+  --green: #2dd882;
+  --green-dim: rgba(45,216,130,.12);
+  --green-border: rgba(45,216,130,.28);
+  --red: #ff5c6a;
+  --red-dim: rgba(255,92,106,.12);
+  --red-border: rgba(255,92,106,.28);
+  --yellow: #ffd166;
+  --yellow-dim: rgba(255,209,102,.12);
+  --yellow-border: rgba(255,209,102,.28);
+  --blue: #4da6ff;
+  --blue-dim: rgba(77,166,255,.12);
+  --blue-border: rgba(77,166,255,.28);
+  --r: 14px;
+  --r-sm: 10px;
+  --mono: 'DM Mono', monospace;
+  --sans: 'Sora', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.5;
+}
 
-  
-    /* (Opcional) esconder login duplicado no Admin */
-    #authEmail, #authPass, #btnLogin, #btnRegister, #authStatus { display:none !important; }
+/* ===== GATE ===== */
+.gate {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  background: rgba(0,0,0,.85);
+  backdrop-filter: blur(12px);
+}
+.gate-box {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 22px;
+  padding: 28px 24px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.7);
+}
+.gate-logo {
+  font-size: 28px; font-weight: 800; letter-spacing: -1px;
+  margin-bottom: 4px;
+}
+.gate-logo span { color: var(--green); }
+.gate-sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.gate-field { margin-bottom: 14px; }
+.gate-field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
+.gate-field input { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r-sm); padding: 13px 14px; color: var(--text); font-family: var(--sans); font-size: 15px; outline: none; transition: border-color .15s; }
+.gate-field input:focus { border-color: var(--green); }
+.gate-btn {
+  width: 100%; margin-top: 18px;
+  background: var(--green); color: #0a0c10;
+  border: none; border-radius: var(--r-sm); padding: 14px;
+  font-family: var(--sans); font-size: 15px; font-weight: 700;
+  cursor: pointer; transition: opacity .15s;
+}
+.gate-btn:active { opacity: .85; }
+.gate-status { margin-top: 14px; font-size: 13px; padding: 10px 12px; border-radius: 8px; background: var(--surface2); color: var(--muted); }
+.gate-status.ok { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
+.gate-status.warn { background: var(--yellow-dim); color: var(--yellow); border: 1px solid var(--yellow-border); }
+.gate-status.bad { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
+.locked .app-shell { filter: blur(4px); pointer-events: none; user-select: none; }
 
-  
-    /* Pesquisa rápida (mobile): fundo preto para máximo contraste */
-    .sugg{
-      position:absolute;
-      z-index:999;
-      background:#000 !important;
-      border:2px solid rgba(255,255,255,.35) !important;
-      border-radius:16px;
-      box-shadow:0 18px 46px rgba(0,0,0,.65);
-      padding:8px;
-      max-height:46vh;
-      overflow:auto;
-      display:none;
-      -webkit-overflow-scrolling:touch;
-    }
-    .sugg .item{
-      background:#000 !important;
-      color:#fff !important;
-      padding:12px 12px;
-      border-radius:12px;
-      cursor:pointer;
-      font-size:16px;
-      font-weight:900;
-      border:1px solid rgba(255,255,255,.12);
-      margin:6px 6px;
-    }
-    .sugg .item:hover{ background:#0b0b0b !important; }
-    .sugg .item.active{
-      background:#111 !important;
-      outline:3px solid rgba(56,189,248,.45);
-      border-color:rgba(56,189,248,.55);
-    }
+/* ===== APP SHELL ===== */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
 
+/* ===== TOP NAV ===== */
+.topnav {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px;
+  background: rgba(10,12,16,.96);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 50;
+  backdrop-filter: blur(10px);
+}
+.topnav-logo { font-weight: 800; font-size: 16px; letter-spacing: -.5px; margin-right: 4px; }
+.topnav-logo span { color: var(--green); }
+.session-badge {
+  font-size: 11px; font-family: var(--mono);
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 3px 8px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;
+}
+.session-badge b { color: var(--text); }
+.topnav-spacer { flex: 1; }
+.user-chip {
+  font-size: 11px; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 20px; padding: 4px 10px; color: var(--muted);
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.btn-logout {
+  background: none; border: 1px solid var(--border); border-radius: 8px;
+  padding: 5px 10px; color: var(--muted); font-family: var(--sans); font-size: 12px;
+  cursor: pointer; white-space: nowrap;
+}
+.btn-logout:hover { border-color: var(--red-border); color: var(--red); }
 
-    /* Mobile: zona de procura fixa no topo para a lista ficar visível */
-    .entryTop{position:sticky;top:0;z-index:40;background:rgba(2,6,23,.98);padding:10px;border-radius:16px;border:2px solid rgba(255,255,255,.10);backdrop-filter: blur(10px);}
-    @media (max-width:700px){
-      .entryTop{top:0}
-    }
+/* ===== TAB BAR ===== */
+.tabbar {
+  display: flex; gap: 4px;
+  padding: 10px 16px 0;
+  background: var(--bg);
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tabbar::-webkit-scrollbar { display: none; }
+.tab-btn {
+  flex: 0 0 auto;
+  padding: 9px 16px;
+  border-radius: 10px 10px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: none;
+  color: var(--muted);
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: all .15s;
+}
+.tab-btn.active {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+.tab-btn:not(.active):hover { color: var(--text); }
+.pending-dot {
+  display: inline-block; width: 7px; height: 7px;
+  background: var(--yellow); border-radius: 50%; margin-left: 5px; vertical-align: middle;
+}
+.pending-dot.hide { display: none; }
 
+/* ===== PANELS ===== */
+.panels { flex: 1; }
+.panel { display: none; padding: 16px; }
+.panel.active { display: block; }
 
-    /* ====== Melhorias MOBILE (Entrada) ====== */
-    @media (max-width:700px){
-      /* Tabs: scroll horizontal (não quebra linhas) */
-      .tabs{
-        flex-wrap:nowrap;
-        overflow:auto;
-        -webkit-overflow-scrolling:touch;
-        padding-bottom:6px;
-        gap:6px;
-      }
-      .tab{flex:0 0 auto}
+/* ===== ENTRY PANEL (MOBILE HERO) ===== */
+#panelEntry {
+  padding-bottom: 24px;
+}
 
-      /* Painel Entry: dar espaço para barra fixa no fundo */
-      #panelEntry{ padding-bottom: 210px; }
+/* Search sticky */
+.entry-search-wrap {
+  position: sticky; top: 57px; z-index: 30;
+  background: rgba(10,12,16,.97);
+  padding: 10px 0 12px;
+  margin: -4px 0 12px;
+}
+.search-box {
+  position: relative;
+}
+.search-icon {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  color: var(--muted); pointer-events: none; font-size: 16px;
+}
+.search-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1.5px solid var(--border2);
+  border-radius: var(--r);
+  padding: 14px 14px 14px 40px;
+  color: var(--text); font-family: var(--sans); font-size: 16px; /* prevents zoom on iOS */
+  outline: none; transition: border-color .15s;
+}
+.search-input:focus { border-color: var(--green); }
+.search-input::placeholder { color: var(--muted); }
+.sugg-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6px);
+  background: #000;
+  border: 1.5px solid rgba(255,255,255,.2);
+  border-radius: var(--r);
+  box-shadow: 0 16px 50px rgba(0,0,0,.75);
+  max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  z-index: 999; display: none;
+}
+.sugg-item {
+  padding: 13px 14px;
+  font-size: 15px; font-weight: 600; color: #fff;
+  cursor: pointer; border-bottom: 1px solid rgba(255,255,255,.06);
+  transition: background .1s;
+}
+.sugg-item:last-child { border-bottom: none; }
+.sugg-item:hover, .sugg-item.active { background: rgba(255,255,255,.06); }
 
-      /* Barra de ações fixa (fundo) */
-      #entryActions{
-        position:fixed;
-        left:12px; right:12px;
-        bottom: calc(12px + env(safe-area-inset-bottom));
-        z-index:60;
-        border-radius: 18px;
-        border: 1px solid rgba(148,163,184,.22);
-        background: rgba(2,6,23,.96);
-        backdrop-filter: blur(10px);
-        box-shadow: 0 18px 60px rgba(0,0,0,.55);
-        padding:10px;
-      }
-      #entryActions .row{ grid-template-columns: 1fr; gap:10px; }
-      #entryActions .row.qtyRow{ grid-template-columns: 1fr auto; }
-      #entryActions button{ border-radius: 16px; }
-      #entryActions .gridQuick{ grid-template-columns: repeat(4, 1fr); margin-top: 8px; gap:8px; }
-      #entryActions .gridQuick button{ padding:12px 10px; font-size:16px; }
+/* Selected product card */
+.selected-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border2);
+  border-radius: var(--r);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.selected-card.has-product { border-color: var(--green-border); background: var(--green-dim); }
+.selected-name { font-weight: 700; font-size: 15px; flex: 1; line-height: 1.3; }
+.selected-empty { color: var(--muted); font-size: 14px; }
+.selected-stats { text-align: right; flex-shrink: 0; }
+.selected-stats .neu { font-family: var(--mono); font-size: 22px; font-weight: 500; color: var(--green); line-height: 1; }
+.selected-stats .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+.btn-clear-sel {
+  background: none; border: 1px solid var(--border); border-radius: 8px;
+  padding: 5px 9px; color: var(--muted); cursor: pointer; font-size: 12px;
+  font-family: var(--sans); flex-shrink: 0;
+}
+.btn-clear-sel:hover { border-color: var(--red-border); color: var(--red); }
 
-      /* Campo de produto selecionado: mais legível */
-      #selected{ font-size:14px; }
-    }
+/* Quick add buttons */
+.quick-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px;
+}
+.quick-btn {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--r-sm); padding: 18px 8px;
+  color: var(--text); font-family: var(--sans); font-size: 18px; font-weight: 800;
+  cursor: pointer; text-align: center; transition: all .1s;
+  touch-action: manipulation; user-select: none;
+}
+.quick-btn:active { transform: scale(.96); background: var(--green-dim); border-color: var(--green-border); color: var(--green); }
 
+/* Custom qty row */
+.qty-row {
+  display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 10px;
+}
+.qty-input {
+  background: var(--surface); border: 1.5px solid var(--border2);
+  border-radius: var(--r-sm); padding: 14px;
+  color: var(--text); font-family: var(--mono); font-size: 20px; font-weight: 500;
+  text-align: center; outline: none; transition: border-color .15s; width: 100%;
+}
+.qty-input:focus { border-color: var(--green); }
+.btn-add {
+  background: var(--green); color: #0a0c10;
+  border: none; border-radius: var(--r-sm); padding: 14px 20px;
+  font-family: var(--sans); font-size: 15px; font-weight: 800;
+  cursor: pointer; white-space: nowrap; transition: opacity .15s;
+  touch-action: manipulation;
+}
+.btn-add:active { opacity: .85; }
 
-    /* ====== Sugestões ancoradas à pesquisa ====== */
-    #searchWrap{position:relative}
-    #searchWrap .sugg{
-      left:0; right:0;
-      top: calc(100% + 6px);
-      width:auto;
-      max-height:46vh;
-    }
+/* Secondary action row */
+.action-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;
+}
+.btn-secondary {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 11px 12px;
+  color: var(--muted); font-family: var(--sans); font-size: 13px; font-weight: 600;
+  cursor: pointer; text-align: center; transition: all .15s; touch-action: manipulation;
+}
+.btn-secondary:hover { border-color: var(--border2); color: var(--text); }
+.btn-secondary:active { transform: scale(.97); }
 
+/* Status */
+.entry-status {
+  padding: 11px 14px; border-radius: var(--r-sm);
+  font-size: 13px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
+}
+.entry-status.ok { background: var(--green-dim); color: var(--green); border-color: var(--green-border); }
+.entry-status.warn { background: var(--yellow-dim); color: var(--yellow); border-color: var(--yellow-border); }
+.entry-status.bad { background: var(--red-dim); color: var(--red); border-color: var(--red-border); }
+
+/* info chips */
+.info-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.chip {
+  font-size: 12px; font-family: var(--mono);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px; color: var(--muted);
+}
+.chip b { color: var(--text); }
+
+/* ===== DASHBOARD ===== */
+.dash-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; margin-bottom: 16px;
+}
+.dash-title { font-size: 18px; font-weight: 800; }
+.dash-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.stat-pill {
+  font-size: 12px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 12px; font-family: var(--mono);
+}
+.stat-pill b { color: var(--text); font-weight: 600; }
+.stat-pill.has-diff b { color: var(--yellow); }
+.dash-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.filter-input {
+  flex: 1; min-width: 160px;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--r-sm); padding: 10px 12px;
+  color: var(--text); font-family: var(--sans); font-size: 14px; outline: none;
+}
+.filter-input:focus { border-color: var(--blue); }
+.btn-export {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 10px 14px;
+  color: var(--muted); font-family: var(--sans); font-size: 13px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; transition: all .15s;
+}
+.btn-export:hover { border-color: var(--border2); color: var(--text); }
+
+/* Table */
+.table-wrap { overflow-x: auto; border-radius: var(--r); border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th {
+  text-align: left; padding: 10px 12px;
+  background: var(--surface2); color: var(--muted);
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: var(--surface2); }
+.mono { font-family: var(--mono); }
+.diff-pos { color: var(--green); font-weight: 700; }
+.diff-neg { color: var(--red); font-weight: 700; }
+.diff-zero { color: var(--muted); }
+.product-name { font-weight: 600; font-size: 13px; }
+.dash-status { margin-top: 12px; }
+
+/* ===== ADMIN ===== */
+.section-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+.form-field label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
+.form-field input, .form-field select {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: var(--r-sm); padding: 11px 12px;
+  color: var(--text); font-family: var(--sans); font-size: 14px; outline: none;
+}
+.form-field select { cursor: pointer; }
+.form-field input:focus, .form-field select:focus { border-color: var(--blue); }
+.admin-status { margin-top: 10px; }
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+@media (max-width: 500px) { .btn-grid { grid-template-columns: 1fr; } }
+.btn-action {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 12px;
+  color: var(--text); font-family: var(--sans); font-size: 14px; font-weight: 600;
+  cursor: pointer; text-align: center; transition: all .15s;
+}
+.btn-action:hover { border-color: var(--border2); background: var(--surface); }
+.btn-action.primary { background: var(--blue-dim); border-color: var(--blue-border); color: var(--blue); }
+.btn-action.primary:hover { background: rgba(77,166,255,.18); }
+.btn-action.danger { background: var(--red-dim); border-color: var(--red-border); color: var(--red); }
+.btn-action.danger:hover { background: rgba(255,92,106,.18); }
+.section-sep { margin: 20px 0; border: none; border-top: 1px solid var(--border); }
+.hint-box {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 12px 14px;
+  font-size: 13px; color: var(--muted); line-height: 1.5;
+  margin-top: 10px;
+}
+.hint-box b { color: var(--text); }
+details summary {
+  cursor: pointer; font-size: 13px; color: var(--muted); font-weight: 600;
+  padding: 10px 0; user-select: none;
+}
+details summary:hover { color: var(--text); }
+textarea.code-area {
+  width: 100%; min-height: 200px; margin-top: 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 12px; color: var(--text);
+  font-family: var(--mono); font-size: 12px; line-height: 1.5; outline: none; resize: vertical;
+}
+
+/* ===== IMPORT ===== */
+.import-zone {
+  border: 2px dashed var(--border2); border-radius: var(--r);
+  padding: 24px; text-align: center; cursor: pointer;
+  transition: all .15s; margin-bottom: 14px;
+}
+.import-zone:hover { border-color: var(--blue-border); background: var(--blue-dim); }
+.import-zone input[type="file"] { display: none; }
+.import-zone-label { color: var(--muted); font-size: 14px; }
+.import-zone-label b { color: var(--text); display: block; font-size: 16px; margin-bottom: 4px; }
+.toggle-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-sm); margin-bottom: 12px; cursor: pointer; }
+.toggle-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--green); cursor: pointer; }
+.toggle-label { font-size: 14px; font-weight: 600; }
+.toggle-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* ===== LOGS ===== */
+.logs-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+.logs-limit { width: 90px; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r-sm); padding: 10px 10px; color: var(--text); font-family: var(--mono); font-size: 14px; outline: none; }
+.logs-status { margin-top: 12px; }
+
+/* ===== STATUS SHARED ===== */
+.status-msg {
+  padding: 11px 14px; border-radius: var(--r-sm);
+  font-size: 13px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
+}
+.status-msg.ok { background: var(--green-dim); color: var(--green); border-color: var(--green-border); }
+.status-msg.warn { background: var(--yellow-dim); color: var(--yellow); border-color: var(--yellow-border); }
+.status-msg.bad { background: var(--red-dim); color: var(--red); border-color: var(--red-border); }
+
+.hide { display: none !important; }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 600px) {
+  .quick-grid { grid-template-columns: repeat(4, 1fr); }
+  .quick-btn { font-size: 17px; padding: 16px 6px; }
+  .topnav { padding: 10px 12px; }
+  .panel { padding: 12px; }
+  .tabbar { padding: 8px 12px 0; }
+}
+@media (min-width: 900px) {
+  .entry-search-wrap { top: 57px; }
+  .topnav { padding: 12px 20px; }
+  .panel { padding: 20px; }
+  .tabbar { display: flex; padding: 10px 20px 0; }
+  .tab-btn { display: flex; }
+  .panels { display: block; }
+}
 </style>
 
-  <!-- Firebase (compat) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 </head>
 <body class="locked">
 
+<!-- GATE -->
 <div id="loginGate" class="gate">
-  <div class="box">
-    <h2>Entrar</h2>
-    <p>O login é obrigatório antes de iniciar a contagem. Use o seu email e password.</p>
-
-    <div class="row">
-      <div>
-        <label>Email</label>
-        <input id="gateEmail" type="text" inputmode="email" autocomplete="email" placeholder="ex: nome@empresa.com"/>
-      </div>
-      <div>
-        <label>Password</label>
-        <input id="gatePass" type="password" autocomplete="current-password" placeholder="••••••••"/>
-      </div>
+  <div class="gate-box">
+    <div class="gate-logo">inv<span>.</span></div>
+    <div class="gate-sub">Sistema de contagem de inventário multiutilizador</div>
+    <div class="gate-field">
+      <label>Email</label>
+      <input id="gateEmail" type="text" inputmode="email" autocomplete="email" placeholder="nome@empresa.com"/>
     </div>
-
-    <div class="gridQuick" style="grid-template-columns:1fr; margin-top:10px">
-      <button id="gateLogin" class="secondary">Entrar</button>
+    <div class="gate-field">
+      <label>Password</label>
+      <input id="gatePass" type="password" autocomplete="current-password" placeholder="••••••••"/>
     </div>
-
-    <div id="gateStatus" class="status" style="margin-top:10px">—</div>
-
-    <div class="hint" style="margin-top:10px"><b>Contas:</b> Os utilizadores são criados no Firebase Console (Authentication → Users).</div>
+    <button class="gate-btn" id="gateLogin">Entrar</button>
+    <div id="gateStatus" class="gate-status">Introduza as suas credenciais.</div>
   </div>
 </div>
 
-<header>
-  <div>
-    <h1>Inventário — Multiutilizador (Firestore)</h1>
-    <p class="sub">Telemóveis para lançar contagens (soma atómica) • PC para ver discrepâncias em tempo real.</p>
-  </div>
-  <div class="pill" style="margin-left:auto" title="Contagem ativa"><span>Contagem:</span> <strong id="activeSessionLabel">—</strong></div>
-  <div class="tabs">
-    <div class="tab active" id="tabEntry">Entrada (mobile)</div>
-    <div class="tab" id="tabDash">Dashboard (PC)</div>
-    <div class="tab" id="tabImport">Importar nova</div>
-    <div class="tab" id="tabLogs">Registos</div>
-  <div class="tab" id="tabAdmin">Admin</div>
-  </div>
-</header>
+<!-- APP -->
+<div class="app-shell">
 
-<div class="wrap">
-  <!-- ENTRY -->
-  <section class="card" id="panelEntry">
-    <div class="row entryTop">
-      <div>
-        <label>Utilizador</label>
-        <input id="whoDisplay" type="text" readonly placeholder="—"/>
-        <div class="small">Vem automaticamente do login.</div>
-      </div>
-      <div id="searchWrap">
-        <label>Produto (pesquisa rápida)</label>
-        <input id="search" type="text" placeholder="Ex.: SKU229 ou 'JUICER'"/>
-        <div class="small">Enter escolhe • ↑↓ navegam • Esc limpa</div>
-        <div class="sugg" id="sugg"></div>
-      </div>
-    </div>
+  <!-- TOP NAV -->
+  <nav class="topnav">
+    <div class="topnav-logo">inv<span>.</span></div>
+    <div class="session-badge">Contagem: <b id="activeSessionLabel">—</b></div>
+    <div class="topnav-spacer"></div>
+    <div class="user-chip" id="userChip">—</div>
+    <button class="btn-logout" id="btnLogout">Sair</button>
+  </nav>
 
-    <div style="margin-top:10px" class="row">
-      <div>
-        <label>Produto selecionado</label>
-        <input id="selected" type="text" readonly placeholder="Nenhum produto selecionado"/>
-      </div>
-      <div class="hide" aria-hidden="true">
-        <label>Quantidade (personalizada)</label>
-        <div class="row" style="grid-template-columns:1fr auto;gap:10px">
-          <input type="number" inputmode="numeric" step="1" min="0" placeholder="0" disabled/>
-          <button style="min-width:140px" disabled>Adicionar</button>
+  <!-- TAB BAR -->
+  <div class="tabbar">
+    <button class="tab-btn active" id="tabEntry" onclick="setTab('entry')">📦 Entrada</button>
+    <button class="tab-btn" id="tabDash" onclick="setTab('dash')">📊 Dashboard</button>
+    <button class="tab-btn" id="tabImport" onclick="setTab('import')">📥 Importar</button>
+    <button class="tab-btn" id="tabLogs" onclick="setTab('logs')">📋 Registos</button>
+    <button class="tab-btn" id="tabAdmin" onclick="setTab('admin')">⚙️ Admin</button>
+  </div>
+
+  <!-- PANELS -->
+  <div class="panels">
+
+    <!-- ENTRY -->
+    <div class="panel active" id="panelEntry">
+
+      <div class="entry-search-wrap">
+        <div class="search-box" id="searchWrap">
+          <span class="search-icon">🔍</span>
+          <input class="search-input" id="search" type="text" placeholder="Pesquisar produto… (SKU ou nome)" autocomplete="off" autocorrect="off" autocapitalize="off"/>
+          <div class="sugg-list" id="sugg"></div>
         </div>
       </div>
+
+      <!-- Selected product -->
+      <div class="selected-card" id="selectedCard">
+        <div class="selected-empty" id="selectedEmpty">Nenhum produto selecionado</div>
+        <div class="selected-name hide" id="selectedName"></div>
+        <div class="selected-stats hide" id="selectedStats">
+          <div class="neu" id="statNeu">—</div>
+          <div class="label">contado</div>
+        </div>
+        <button class="btn-clear-sel hide" id="btnClearSel">✕</button>
+      </div>
+
+      <!-- Quick add -->
+      <div class="quick-grid">
+        <button class="quick-btn" data-add="1">+1</button>
+        <button class="quick-btn" data-add="2">+2</button>
+        <button class="quick-btn" data-add="5">+5</button>
+        <button class="quick-btn" data-add="10">+10</button>
+      </div>
+
+      <!-- Custom qty -->
+      <div class="qty-row">
+        <input class="qty-input" id="qty" type="number" inputmode="numeric" step="1" min="0" placeholder="0"/>
+        <button class="btn-add" id="btnAddCustom">Adicionar</button>
+      </div>
+
+      <!-- Sync + clear -->
+      <div class="action-row">
+        <button class="btn-secondary" id="btnSync">🔄 Sincronizar pendentes</button>
+        <button class="btn-secondary" onclick="setTab('dash')">📊 Ver dashboard</button>
+      </div>
+
+      <!-- Status + chips -->
+      <div class="entry-status" id="entryStatus">Aguarda ligação ao Firebase…</div>
+      <div class="info-chips">
+        <div class="chip">Pendentes offline: <b id="pendingCount">0</b></div>
+        <div class="chip">Contado (produto): <b id="newQty">—</b></div>
+      </div>
     </div>
 
-    <!-- Ações (no desktop ficam na página; no mobile ficam fixas em baixo) -->
-    <div id="entryActions">
-      <div class="row qtyRow" style="grid-template-columns:1fr auto;gap:10px">
+    <!-- DASHBOARD -->
+    <div class="panel" id="panelDash">
+      <div class="dash-header">
+        <div class="dash-title">Dashboard</div>
+        <div class="dash-stats">
+          <div class="stat-pill">Discrepâncias: <b id="discCount">—</b></div>
+        </div>
+      </div>
+      <div class="dash-toolbar">
+        <input class="filter-input" id="dashFilter" type="text" placeholder="Filtrar por produto…"/>
+        <button class="btn-export" id="btnExportDiff">⬇ Discrepâncias</button>
+        <button class="btn-export" id="btnExportNew">⬇ Nova contagem</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:50%">Produto</th>
+              <th class="mono">Anterior</th>
+              <th class="mono">Nova</th>
+              <th class="mono">Dif</th>
+            </tr>
+          </thead>
+          <tbody id="discBody">
+            <tr><td colspan="4" style="padding:20px;color:var(--muted);text-align:center">Ligue no Admin para ver dados.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="dashStatus" class="dash-status status-msg">—</div>
+    </div>
+
+    <!-- IMPORT -->
+    <div class="panel" id="panelImport">
+      <div class="section-title">Importar contagem nova (CSV)</div>
+
+      <label class="import-zone" id="importZone" for="newFile">
+        <input type="file" id="newFile" accept=".csv,.txt"/>
+        <div class="import-zone-label">
+          <b>📂 Selecionar ficheiro CSV</b>
+          Coluna A: Produto · Coluna B: Quantidade
+        </div>
+      </label>
+
+      <label class="toggle-row">
+        <input type="checkbox" id="chkImportAdd" checked/>
         <div>
-          <label>Quantidade</label>
-          <input id="qty" type="number" inputmode="numeric" step="1" min="0" placeholder="0"/>
+          <div class="toggle-label">Somar ao existente</div>
+          <div class="toggle-sub">Desligue para substituir os valores atuais</div>
         </div>
-        <div style="display:flex;align-items:end">
-          <button id="btnAddCustom" style="min-width:140px">Adicionar</button>
+      </label>
+
+      <div class="form-grid" style="grid-template-columns:1fr 1fr">
+        <button class="btn-action primary" id="btnImportNew">Importar agora</button>
+        <button class="btn-action" id="btnClearNewFile">Limpar ficheiro</button>
+      </div>
+
+      <div id="importStatus" class="status-msg">Selecione um CSV e clique "Importar agora".</div>
+    </div>
+
+    <!-- LOGS -->
+    <div class="panel" id="panelLogs">
+      <div class="section-title">Registos de contagem</div>
+      <div class="logs-toolbar">
+        <input class="filter-input" id="logsFilter" type="text" placeholder="Filtrar…"/>
+        <input class="logs-limit" id="logsLimit" type="number" min="50" step="50" value="300" title="Limite por página"/>
+        <button class="btn-export" id="btnRefreshLogs">↺ Atualizar</button>
+        <button class="btn-export" id="btnLoadMoreLogs">+ Carregar mais</button>
+        <button class="btn-export" id="btnExportLogs">⬇ CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:18%">Data</th>
+              <th style="width:26%">Utilizador</th>
+              <th>Produto</th>
+              <th class="mono" style="width:10%">+Qty</th>
+            </tr>
+          </thead>
+          <tbody id="logsBody">
+            <tr><td colspan="4" style="padding:20px;color:var(--muted);text-align:center">Sem dados.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="logsStatus" class="logs-status status-msg">—</div>
+    </div>
+
+    <!-- ADMIN -->
+    <div class="panel" id="panelAdmin">
+      <div class="section-title">Ligação ao Firebase</div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Namespace (separar contagens por mês)</label>
+          <input id="namespace" type="text" placeholder="Ex.: inv_2026_04"/>
+        </div>
+        <div class="form-field" style="display:flex;flex-direction:column;justify-content:flex-end">
+          <button class="btn-action primary" id="btnConnect">Ligar ao Firestore</button>
         </div>
       </div>
 
-      <div class="gridQuick">
-        <button class="quick" data-add="1">+1</button>
-        <button class="quick" data-add="2">+2</button>
-        <button class="quick" data-add="5">+5</button>
-        <button class="quick" data-add="10">+10</button>
-      </div>
-
-      <div class="gridQuick" style="grid-template-columns:1fr 1fr; margin-top:10px">
-        <button id="btnSync" class="secondary">Sincronizar pendentes</button>
-        <button id="btnClearSel" class="secondary">Limpar seleção</button>
-      </div>
-    </div>
-
-    <div style="margin-top:10px">
-      <span class="pill">Nova (total): <strong id="newQty">—</strong></span>
-      <span class="pill">Pendentes offline: <strong id="pendingCount">0</strong></span>
-    </div>
-
-    <div id="status" class="status">Abra Admin, clique “Ligar”, e depois “Inicializar produtos”.</div>
-
-
-    <div class="hint"><b>Multiutilizador:</b> cada “Adicionar” atualiza o Firestore com <b>transaction</b>, garantindo soma correta.</div>
-  </section>
-
-  <!-- DASH -->
-  <aside class="card hide" id="panelDash">
-    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-      <div>
-        <div style="font-weight:900;margin-bottom:4px">Dashboard</div>
-        <div class="small">Discrepâncias (Anterior vs Nova). Atualiza em tempo real.</div>
-      </div>
-      <div class="pill">Discrepâncias: <strong id="discCount">—</strong></div>
-    </div>
-
-    <div style="margin-top:10px" class="row">
-      <div>
-        <label>Filtro (produto contém…)</label>
-        <input id="dashFilter" type="text" placeholder="Ex.: SKU229 / JUICER"/>
-      </div>
-      <div>
-        <label>Exportar</label>
-        <div class="row" style="grid-template-columns:1fr 1fr;gap:10px">
-          <button id="btnExportDiff" class="secondary">Discrepâncias (CSV)</button>
-          <button id="btnExportNew" class="secondary">Nova contagem (CSV)</button>
+      <hr class="section-sep"/>
+      <div class="section-title">Sessões de contagem</div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Contagem ativa</label>
+          <select id="sessionSelect"></select>
+        </div>
+        <div class="form-field">
+          <label>Ações</label>
+          <div class="btn-grid">
+            <button class="btn-action primary" id="btnOpenSession">Abrir</button>
+            <button class="btn-action danger" id="btnNewSession">Nova</button>
+            <button class="btn-action danger" id="btnDeleteSession">Apagar</button>
+          </div>
         </div>
       </div>
-    </div>
+      <div id="sessionStatus" class="status-msg admin-status">—</div>
 
-    <div style="margin-top:10px">
-      <table>
-        <thead>
-          <tr>
-            <th style="width:58%">Produto</th>
-            <th class="mono">Anterior</th>
-            <th class="mono">Nova</th>
-            <th class="mono">Dif</th>
-          </tr>
-        </thead>
-        <tbody id="discBody">
-          <tr><td colspan="4" style="color:var(--muted);padding:12px">Sem dados. Ligue no Admin.</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div id="dashStatus" class="status" style="margin-top:10px">—</div>
-  </aside>
-
-  <!-- ADMIN -->
-  <section class="card" id="panelAdmin">
-    <div style="font-weight:900;margin-bottom:6px">Admin / Configuração</div>
-
-    <div class="row">
-      <div>
-        <label>Namespace (separar por mês)</label>
-        <input id="namespace" type="text" placeholder="Ex.: inv_2026_02"/>
-        <div class="small">Coleções usadas: <span class=\"kbd\">NAMESPACE_sessions/&lt;id&gt;/products</span> e <span class=\"kbd\">NAMESPACE_sessions/&lt;id&gt;/logs</span></div>
+      <hr class="section-sep"/>
+      <div class="section-title">Produtos e contagens</div>
+      <div class="btn-grid" style="margin-bottom:10px">
+        <button class="btn-action primary" id="btnInit">Inicializar produtos</button>
+        <button class="btn-action danger" id="btnResetNew">Reset nova contagem</button>
+        <div></div>
       </div>
-      <div>
-        <label>Estado ligação</label>
-        <button id="btnConnect" class="secondary">Ligar</button>
-        <div class="small">Config Firebase já está embutida (do teu projeto).</div>
-      </div>
-    </div>
-
-    <div style="margin-top:10px" class="row">
-      <div>
-        <label>Contagem ativa</label>
-        <select id="sessionSelect"></select>
-        <div class="small">Cada contagem é independente (produtos, anterior, nova e registos separados).</div>
-      </div>
-      <div>
-        <label>Ações de contagem</label>
-        <div class="gridQuick" style="grid-template-columns:1fr 1fr 1fr">
-          <button id="btnOpenSession" class="secondary">Abrir</button>
-          <button id="btnNewSession" class="danger">Nova contagem</button>
-          <button id="btnDeleteSession" class="danger">Apagar</button>
-        </div>
-        <div class="small" style="margin-top:6px">“Apagar” remove a contagem selecionada (produtos + logs). Não dá para recuperar.</div>
-        <div class="small">Use “Nova contagem” para começar do zero sem misturar com as antigas.</div>
-      </div>
-    </div>
-
-    <div id="sessionStatus" class="status" style="margin-top:10px">Crie ou selecione uma contagem.</div>
-
-
-    <div style="margin-top:10px" class="row">
-      <div>
-        <label>Login (Email)</label>
-        <input id="authEmail" type="text" inputmode="email" autocomplete="email" placeholder="ex: nome@empresa.com"/>
-      </div>
-      <div>
-        <label>Password</label>
-        <input id="authPass" type="password" autocomplete="current-password" placeholder="••••••••"/>
-      </div>
-    </div>
-
-    <div class="gridQuick" style="grid-template-columns:1fr 1fr; margin-top:10px">
-      <button id="btnLogin" class="secondary">Entrar</button><button id="btnLogout" class="danger">Sair</button>
-    </div>
-
-    <div id="authStatus" class="status" style="margin-top:10px">—</div>
-
-
-    <div style="margin-top:10px" class="row">
-      <div>
+      <div class="form-field" style="margin-bottom:10px">
         <label>Upload contagem anterior (CSV: Produto, Qty)</label>
-        <input id="prevFile" type="file" accept=".csv,.txt"/>
-        <div class="small">Importa para <b>Prev</b> e recalcula discrepâncias.</div>
+        <input type="file" id="prevFile" accept=".csv,.txt" style="background:var(--surface2);border:1px dashed var(--border2);border-radius:var(--r-sm);padding:10px;width:100%;color:var(--muted);font-family:var(--sans);font-size:13px;"/>
       </div>
-      <div>
-        <label>Ações</label>
-        <div class="gridQuick" style="grid-template-columns:1fr 1fr">
-          <button id="btnInit" class="secondary">Inicializar produtos</button>
-          <button id="btnResetNew" class="danger">Reset nova contagem</button>
+
+      <div id="adminStatus" class="status-msg admin-status">Configure o namespace e clique "Ligar".</div>
+
+      <hr class="section-sep"/>
+      <details>
+        <summary>Regras Firestore (copiar para o Firebase Console)</summary>
+        <textarea id="rulesBox" class="code-area" spellcheck="false" readonly></textarea>
+        <div style="margin-top:8px">
+          <button class="btn-action" id="btnCopyRules" style="max-width:200px">Copiar regras</button>
         </div>
-      </div>
+      </details>
     </div>
 
-    <div id="adminStatus" class="status">1) Ligar  2) Inicializar produtos  3) (Opcional) Upload contagem anterior</div>
-    <div class="hint" style="margin-top:10px">
-      <b>Listagens:</b><br/>
-      • <b>Contagem anterior</b> (Prev) faz upload aqui.<br/>
-      • <b>Nova listagem</b> (Neu) faz upload no separador <b>Importar nova</b>.<br/>
-      <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
-        <button id="btnGoImport" class="secondary">Abrir “Importar nova”</button>
-        <button id="btnGoDash" class="secondary">Ver discrepâncias no Dashboard</button>
-      </div>
-      <div class="small" style="margin-top:6px">Dica: para “introduzir nova listagem e depois somar”, no Importar nova usa <b>Substituir</b> (baseline) e depois lança contagens no mobile.</div>
-    </div>
-
-
-    <div class="hint">
-      <b>Checklist Firebase:</b><br/>
-      1) Firestore Database criado<br/>
-      2) Authentication → <span class="kbd">Email/Password</span> ativado<br/>
-      3) Regras: permitir read/write só a utilizadores autenticados
-    </div>
-    <details class="hint" style="margin-top:10px">
-      <summary><b>Regras Firestore recomendadas (copiar/colar)</b></summary>
-      <div class="small" style="margin:8px 0 10px 0;line-height:1.45">
-        Mantém o modelo de <b>um único login</b>, mas: bloqueia <b>delete</b>, valida campos e torna os <b>logs append-only</b>.
-      </div>
-      <textarea id="rulesBox" spellcheck="false" style="width:100%;min-height:260px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;font-size:12px;line-height:1.35;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.25);color:inherit"></textarea>
-      <div class="row" style="margin-top:10px">
-        <button id="btnCopyRules" class="secondary">Copiar regras</button>
-        <div class="small">Cole no Firebase → Firestore Database → Rules → Publish.</div>
-      </div>
-    </details>
-
-  </section>
-
-  <!-- IMPORT NEW COUNT -->
-  <section class="card hide" id="panelImport">
-    <div style="font-weight:900;margin-bottom:6px">Importar contagem nova (CSV)</div>
-    <div class="small">Faz upload de um CSV com <b>Produto</b> na coluna A e <b>Qty</b> na coluna B. Vai gravar para <b>Nova</b> (neu) e recalcular discrepâncias (dif = neu - prev).</div>
-
-    <div style="margin-top:10px" class="row">
-      <div>
-        <label>Upload contagem nova (CSV: Produto, Qty)</label>
-        <input id="newFile" type="file" accept=".csv,.txt"/>
-        <div class="small">Isto <b>substitui</b> a “Nova” para os produtos presentes no ficheiro.</div>
-      </div>
-      <div>
-        <label>Ações</label>
-        <div class="hint" style="margin-top:8px">
-          <label style="display:flex;gap:10px;align-items:center;cursor:pointer">
-            <input id="chkImportAdd" type="checkbox" style="width:18px;height:18px;accent-color: var(--accent)" checked/>
-            <span><b>Somar</b> ao que já está em “Nova”</span>
-          </label>
-          <div class="small">Desligue para <b>substituir</b> a “Nova” com os valores do CSV.</div>
-        </div>
-
-        <div class="gridQuick" style="grid-template-columns:1fr 1fr">
-          <button id="btnImportNew" class="secondary">Importar agora</button>
-          <button id="btnClearNewFile" class="secondary">Limpar ficheiro</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="importStatus" class="status" style="margin-top:10px">Ligue e autentique-se primeiro. Depois escolha o CSV e clique “Importar agora”.</div>
-    <div class="hint"><b>Nota:</b> Se o CSV tiver produtos que não existem, eles serão criados (com prev=0 se não existir).</div>
-  </section>
-
-  <!-- LOGS -->
-  <section class="card hide" id="panelLogs">
-    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-      <div>
-        <div style="font-weight:900;margin-bottom:4px">Registos de contagem</div>
-        <div class="small">Mostra todas as entradas (mesmo repetidas do mesmo produto). Pode carregar mais e exportar tudo em colunas (TSV).</div>
-      </div>
-      <div class="row" style="grid-template-columns:auto auto auto; gap:10px; align-items:end; margin:0">
-        <button id="btnExportLogs" class="secondary" style="min-width:180px">Exportar registos (CSV)</button>
-        <button id="btnRefreshLogs" class="secondary" style="min-width:180px">Atualizar</button>
-        <button id="btnLoadMoreLogs" class="secondary" style="min-width:180px">Carregar mais</button>
-      </div>
-    </div>
-
-    <div style="margin-top:10px" class="row">
-      <div>
-        <label>Filtro (contém…)</label>
-        <input id="logsFilter" type="text" placeholder="Ex.: sku / produto / email / import"/>
-      </div>
-      <div>
-        <label>Limite (por página)</label>
-        <input id="logsLimit" type="number" min="50" step="50" value="300"/>
-        <div class="small">Carrega os últimos N por vez (use “Carregar mais”).</div>
-      </div>
-    </div>
-
-    <div style="margin-top:10px">
-      <table>
-        <thead>
-          <tr>
-            <th style="width:18%">Data</th>
-            <th style="width:26%">Utilizador</th>
-            <th style="width:44%">Produto</th>
-            <th class="mono" style="width:12%">Delta</th>
-          </tr>
-        </thead>
-        <tbody id="logsBody">
-          <tr><td colspan="4" style="color:var(--muted);padding:12px">Ligue no Admin e faça login.</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div id="logsStatus" class="status" style="margin-top:10px">—</div>
-  </section>
-
-
-
-</div>
-
-
+  </div><!-- /panels -->
+</div><!-- /app-shell -->
 
 <script>
-  // ================== Produtos ==================
-  const PRODUCTS = ["SKU2072 CHRISTMAS TREE 220CM", "SKU2118 MULTIF JUICER", "SKU2226 TOURIST GRILL", "SKU229 SEWING MACHINE", "SKU4011 FIREPLACE", "SKU414 DRONE", "SKU428 MINI AIR CONDITIONER", "SKU541 HEDGE TRIMMERS", "SKU547 THERMOSTATIC WATER HEATER", "SKU6062 COLUMN AIR CONDITIONER", "SKUCR7021 STEAMER", "SKU058 GARDEN SHEARS", "SKU2132 SHOWER HEAD", "SKU368 MINI SAW", "SKU511 CAMPING COOKWARE", "SKU517 ANTENNA", "SKU006 SILICONE KITCHEN GLOVES", "SKU012 (X5) SOLAR LAMP SET", "SKU017 BATTERY POWERED TRIMMER", "SKU024 EMBROIDERY KIT", "SKU028 (X2) RODENT REPELLENT", "SKU030 AIR FRESHNER", "SKU037 ELECTRONIC KITCHEN SCALE", "SKU048 WARMING OINTMENT", "SKU059 FOOT MASSAGE SLIPPERS", "SKU060 MAGNETIC CLEANER", "SKU069 MINI WIRELESS CAMERA", "SKU085B MOSQUITO REPELLENT WATCH", "SKU094 SET SILICON", "SKU113 AIR HUMIDIFIER DIFFUSER", "SKU114 NECK MASSAGER", "SKU117 BLUETOOTH GPS KEY DOG CAT FINDER", "SKU130 MASSAGE GUN", "SKU152 DRIVING RECORDER", "SKU172 WIRELESS KEYBOARD", "SKU181 TEFLON MAT FOR GRILL OVEN BAKING", "SKU191 CAR MIRROR RECORDER", "SKU1999 CASE", "SKU2008 MEMORY CARD", "SKU201 GARDEN GLOVES", "SKU2021 TWO CHAINS AND A GUIDE FOR A MINI SAW", "SKU2030 DRONE BATTERY", "SKU2035 JUICEMAKER", "SKU2042 CAMERA PEN", "SKU2045 PHEROM ONE PLUS", "SKU2054 ELECTRIC LUNCHBOX", "SKU2055 LEAF BLOWER", "SKU2059 FEET WARMER", "SKU2065 MEIAS TÉRMICAS COM TURMALINA", "SKU2067 REFIL FILTER FOR VACUUM CLEANER", "SKU2068 PORTABLE ELECTRIC HEATER", "SKU2069 AIR CURTAIN", "SKU2077 ELECTRIC FIREPLACE", "SKU2078 CHRISTMAS CURTAIN", "SKU2079 HEATED VEST", "SKU2081 HEATED GLOVES", "SKU2082 ELECTRIC HEATER BLANKET", "SKU2084 ELECTRIC WATER HEATER", "SKU2090 MINI THERMAL PRINTER", "SKU2106 CLOTHES CHAVER", "SKU2111 GPS LOCATOR", "SKU2112 PAPER FOR A MINI PRINTER SET5", "SKU2113 HAND CRAFTING KIT", "SKU2116 AUTOMATIC HAIR CURLER", "SKU2117 BATTERY FOR A TRIMMER", "SKU2119 SILVER SLICER", "SKU2121 MINI OVEN", "SKU2122 TOPPER", "SKU2124 BATTERY FOR A SCREWDRIVER", "SKU2130 SMARTWATCH", "SKU2131 WAIST TRAINER", "SKU2133 BATTERY FOR SCISSORS", "SKU2149 SLICER SHREDDER", "SKU2153 SUPHUM FOCUS MEMORY", "SKU2154 SUPHUM HAIR GROWTH", "SKU2155 SUPHUM WEIGHT LOSS", "SKU2159 HAMMOCK", "SKU2160 ELECTRIC GRILL BBQ", "SKU2165 CLOTHES HANGER SET", "SKU2169 SPORT BLENDER", "SKU2170 GRASS TRIMMER BLADES", "SKU2171 LAMP WITH CHARGER", "SKU2178 FOLDING FAN", "SKU2183 THERMAL BAG", "SKU2185 COOLING INSERT FOR AIR CONDITIONER", "SKU2195 3 IN 1 BREAKFAST MAKER", "SKU2197 CAMPING HAMMOCK", "SKU2199 BLOWER BATTERY 48V", "SKU2202 SPARE SCISSOR BLADES", "SKU2205 CHRISTMAS LASER LIGHT", "SKU2211 CHRISTMAS TRAIN", "SKU2217 SEWING MACHINE TABLE", "SKU2218 AIR HUMIDIFIER WITH FLAME EFECT", "SKU2220 MATTRESS PUMP", "SKU2221 USB CABLE", "SKU2228 TANKLESS ELECTRIC WATER HEATER", "SKU2234 NAIL DRILL", "SKU2237 PLASTIC WELDING MACHINE", "SKU2238 KNIFE SHARPENER", "SKU279 TRIMMER", "SKU290 TACTICAL FLASHLIGHT", "SKU294 ROTATING CAMERA", "SKU301 CAR HANDSFREE BLUETOOTH V30", "SKU311 WATERPROOF SOLAR LAMP", "SKU312 GLASSES ONE POWER", "SKU317 SWEEPING ROBOT", "SKU329 FOOD QUICK DEFROSTING TRAY", "SKU350 DISK LIGHTS", "SKU352 SOLAR POWER BANK", "SKU357 GRILLING TOOLS", "SKU360 GARDEN FOUNTAIN", "SKU361 VIDEODOMOFON", "SKU364 WIRELESS SCREW CAMERA", "SKU375 WIRELESS HEADPHONE", "SKU380 CORDLESS ELECTRIC CLEANING BRUSH", "SKU384 STARTER KIT", "SKU390 CAR CAMERA", "SKU393 COOKWARE SET", "SKU395 SCREWDRIVER", "SKU4000 CONJUNTO DE 10 PANOS MICROFIBRA MULTIUSOS 30X30", "SKU4004 APARADOR DE NARIZ", "SKU4005 CONJUNTO DE LÂMINAS", "SKU4009 MOPA TRIANGULAR", "SKU403 SILICONE BAG FOR DOUGH", "SKU412 MINI LANTERNA DE BOLSO", "SKU413 POWERBANK SOLAR DE BOLSO", "SKU419 HEADLAMP", "SKU421 BAGLESS VACUUM", "SKU424 RETRO CONSOLE", "SKU430 ENERGY SAVER", "SKU431 PRESSURE WASHER", "SKU435 VEGETABLE CHOPPER", "SKU436 FOLDING GLASSES", "SKU438 CAR VACUUM CLEANER", "SKU439 BATTERY 21V", "SKU454 MOSQUITO NET 2X1", "SKU456 GRASS TRIMMER", "SKU460 GRINDER AND DRILL", "SKU461 LIQUID SEALING SPRAY", "SKU464 DESIGN PORTABLE BLENDER", "SKU466 CORDLESS SCISSORS", "SKU470 INTEX INFLATABLE MATTRESS", "SKU474 MULTICOOKER", "SKU475 S POSTURE CORRECTOR", "SKU475 M POSTURE CORRECTOR", "SKU475 L POSTURE CORRECTOR", "SKU475 XL POSTURE CORRECTOR", "SKU475 XXL POSTURE CORRECTOR", "SKU475 XXXL POSTURE CORRECTOR", "SKU484 ADAPTER", "SKU486 CORDLESS IRON", "SKU497 CONSOLE", "SKU498 WI-FI SIGNAL BOOSTER", "SKU503 GAMEPAD COLOR", "SKU506 ASTRONAUT PROJECTOR", "SKU507 (X2) SOLAR STREET LAMP", "SKU510 PORTABLE TRAVEL GRILL", "SKU520 PASTA MACHINE", "SKU521 SINK POPUP FILTER", "SKU523 SPRAYER", "SKU532 INFLATABLE BED", "SKU534 MAGNETIC BAND", "SKU537 SPRAY GUN", "SKU546 COOLING AND HEATING AIR CONDITIONER", "SKU552 TRANSLATOR", "SKU563 PROTECTIVE BAG FOR FOLDING GLASSES", "SKU6014 LAUNDRY DRYER CABINET", "SKU6071 GRAY SOCKET HEATER", "SKU6073 BLACK HEATER IMITATING FIRE", "SKU6093 SMARTWATCH V17", "SKU6093-1 SMARTWATCH FILMS", "SKU7007 HEDGE TRIMMERS", "SKU7019 SOLAR POWERBANK", "SKUAD1199 KARAOKE SPEAKER", "SKUAD2943 HAIR RAZOR", "SKUAD2944 HAIR CARE KIT", "SKUAD4226 PLANETARY ROBOT", "SKUAD7036 1 FILTER FOR HAND VACUUM CLEANER", "SKUAD7860 DEHUMIDIFIER", "SKUCR4457 CHOCOLATE FOUNTAIN", "SKUEKM 033 MEAT MINCER", "SKUMS2152 FOOT CARE MASSAGER", "SKURB9281 KITCHEN KNIVES", "SKUZL7055 MARBLE POTS", "SKU7015 BATTERY CHARGER", "SKU7021 FOLDING WASHING MACHINE", "SKU2190 XL CAR PROTECTOR", "SKU2190 L CAR PROTECTOR", "SKU2175 AUTOMATIC SPRINKLER", "SKU7055 WINDOW CLEANING ROBOT", "SKU7017 TRANSLATOR EARBUDS", "SKU180 ANTI-CELLUITE MASSAGER", "SKU7012 LASER HAIR REMOVAL KIT", "SKU7032 LIQUID LAWN", "SKU2134 EYE MASSAGER", "SKU416-5 USB CAMERA", "SKU437 MOSQUITO LAMP", "SKU354 SLICER", "SKU7036 S SHOE INSERTS", "SKU7036 M SHOE INSERTS", "SKU7036 L SHOE INSERTS", "WARRANTY ES", "WARRANTY PT", "SKU7001 BODY MASSAGER", "SKU2079 S M HEATED VEST", "SKU2079 L HEATED VEST", "SKU2079 XL XXL HEATED VEST", "SKU436 15 FOLDING GLASSES", "SKU436 2 FOLDING GLASSES", "SKU436 25 FOLDING GLASSES", "SKU436 3 FOLDING GLASSES", "SKU387 HAIR SET BRUSH CURLER DRYER", "SKU083 ZOOM LENS TELESCOPE", "SKU533 BIG SOLAR LAMP", "SKU551 PLANETARY MIXER", "SKU327 MOSQUITO KILLER", "SKU2129 FURNITURE ROLLERS", "SKU2122-2 TOPPER 180x200", "SKU125 POWERFUL GUN MASSAGER", "SKU2248 SET OF LAMP AND CAMERA IN A BULB", "SKU513 MEAT MINCER", "SKUAD3223 TOASTER", "SKU146 CAMERA MINI FULL HD", "SKU6094 AIR COMPRESOR", "SKU2152 WELDING MACHINE", "SKU7006 GLUE GUN", "SKU422 ROTATING MOP", "SKU2244 COVER FOR TRANSPORTING ANIMALS", "SKU090 PET NAIL FILE", "SKU016 PORTABLE DOG WATER BOTTLE", "SKU7003 LED FACE MASK", "SKU559 FLAT SPIN MOP INSERT", "SKU7027 SET OF KEYS", "SKU2053 REFIL FILTER FOR VACUUM CLEANER", "SKU7034 ELECTRIC WASHER", "SKU6074 WHITE HEATER WITH IMITATION FIRE", "SKU137 PORTABLE MINI HEATER", "SKU6072 ELECTRIC NECK WARMER", "SKU459 MASSAGER", "SKU441 FOOD SEALER", "SKU2250 FLASHLIGHT MINI SAW PRECATEUR", "SKU2138 MULTI-TOOL", "SKU457 TOURIST COOKER", "SKU3002 SHOE INSERTS", "SKU2210 SMART LIGHTS", "SKU7028 SCOODIE - R - HOODED SCARF", "SKU7028 SCOODIE - L - HOODED SCARF", "SKU473 AUTOMATIC WASTE BIN", "SKU2057 FAN HEATER LED", "SKUEKA001 FAT-FREE FRYER", "SKU2105 PLATINUM SCRATCH REMOVER", "SKU2260 GALAXY PROJECTOR", "SKUMS9610 LINT REMOVER"];
+// ================== FIREBASE REST API — sem SDK, funciona em file:// ==================
+// Auth: https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword
+// Firestore: https://firestore.googleapis.com/v1/projects/{proj}/databases/(default)/documents/...
 
-  // ================== Firebase config (já preenchida) ==================
-  const FIREBASE_CONFIG = {"apiKey": "AIzaSyCvI_QHzrSTr4VRdShQUNOdTkOLyKlQCO0", "authDomain": "contagem-de-inventario.firebaseapp.com", "projectId": "contagem-de-inventario", "storageBucket": "contagem-de-inventario.firebasestorage.app", "messagingSenderId": "756938513058", "appId": "1:756938513058:web:b25e4ac4033934db9cd5fb"};
+const API_KEY   = "AIzaSyCvI_QHzrSTr4VRdShQUNOdTkOLyKlQCO0";
+const PROJECT   = "contagem-de-inventario";
+const AUTH_URL  = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`;
+const FS_BASE   = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
 
-  // ================== Storage keys ==================
-  const CFGKEY="inv_cfg_v3";      // {namespace}
-  const SESSIONKEY="inv_session_v1";
-  const QKEY="inv_pending_v3";    // queue offline
-  const SELKEY="inv_selected_v3"; // last selected
+// ===== Auth token management =====
+let _idToken = null, _tokenExp = 0, _refreshToken = null, _userEmail = "";
 
-  // ================== Elements ==================
-  const tabEntry=document.getElementById('tabEntry');
-  const tabDash=document.getElementById('tabDash');
-  const tabAdmin=document.getElementById('tabAdmin');
-  const panelEntry=document.getElementById('panelEntry');
-  const panelDash=document.getElementById('panelDash');
-  const panelAdmin=document.getElementById('panelAdmin');    const tabImport=document.getElementById('tabImport');
-  const panelImport=document.getElementById('panelImport');
-  const tabLogs=document.getElementById('tabLogs');
-  const panelLogs=document.getElementById('panelLogs');
-  const btnGoImport=document.getElementById('btnGoImport');
-  const btnGoDash=document.getElementById('btnGoDash');
-
-const search=document.getElementById('search');
-  const selected=document.getElementById('selected');
-  const whoDisplay=document.getElementById('whoDisplay');
-  const qty=document.getElementById('qty');
-  const btnAddCustom=document.getElementById('btnAddCustom');
-  const btnSync=document.getElementById('btnSync');
-  const btnClearSel=document.getElementById('btnClearSel');  const newQty=document.getElementById('newQty');  const pendingCount=document.getElementById('pendingCount');
-  const status=document.getElementById('status');
-
-  const dashFilter=document.getElementById('dashFilter');
-  const discBody=document.getElementById('discBody');
-  const discCount=document.getElementById('discCount');
-  const dashStatus=document.getElementById('dashStatus');
-  const btnExportDiff=document.getElementById('btnExportDiff');
-  const btnExportNew=document.getElementById('btnExportNew');
-
-
-  // Logs
-  const logsFilter=document.getElementById('logsFilter');
-  const logsLimit=document.getElementById('logsLimit');
-  const logsBody=document.getElementById('logsBody');
-  const logsStatus=document.getElementById('logsStatus');
-  const btnExportLogs=document.getElementById('btnExportLogs');
-  const btnRefreshLogs=document.getElementById('btnRefreshLogs');
-  const btnLoadMoreLogs=document.getElementById('btnLoadMoreLogs');
-  const namespaceInput=document.getElementById('namespace');
-  const btnConnect=document.getElementById('btnConnect');
-  const prevFile=document.getElementById('prevFile');
-  
-  const authEmail=document.getElementById('authEmail');
-  const authPass=document.getElementById('authPass');
-  const btnLogin=document.getElementById('btnLogin');  const btnLogout=document.getElementById('btnLogout');
-  const authStatus=document.getElementById('authStatus');
-
-  // Gate (login obrigatório)
-  const loginGate=document.getElementById('loginGate');
-  const gateEmail=document.getElementById('gateEmail');
-  const gatePass=document.getElementById('gatePass');
-  const gateLogin=document.getElementById('gateLogin');  const gateStatus=document.getElementById('gateStatus');
-const btnInit=document.getElementById('btnInit');
-  const btnResetNew=document.getElementById('btnResetNew');
-  const adminStatus=document.getElementById('adminStatus');
-
-    const rulesBox=document.getElementById('rulesBox');
-  const btnCopyRules=document.getElementById('btnCopyRules');
-  if(rulesBox) rulesBox.value = "rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n\n    function signedIn() { return request.auth != null; }\n\n    // Allow only known fields + basic type/constraints\n    function isSessionDocValid() {\n      // session docs: {name, createdAt, updatedAt, createdBy}\n      return request.resource.data.keys().hasOnly(['name','createdAt','updatedAt','createdBy']) &&\n             request.resource.data.name is string &&\n             request.resource.data.name.size() >= 1 &&\n             request.resource.data.name.size() <= 80 &&\n             request.resource.data.createdBy is string &&\n             request.resource.data.createdBy.size() <= 120 &&\n             request.resource.data.createdAt == request.time &&\n             request.resource.data.updatedAt == request.time;\n    }\n\n    function isSessionUpdateValid() {\n      return request.resource.data.keys().hasOnly(['name','createdAt','updatedAt','createdBy']) &&\n             request.resource.data.name is string &&\n             request.resource.data.name.size() >= 1 &&\n             request.resource.data.name.size() <= 80 &&\n             request.resource.data.createdBy == resource.data.createdBy &&\n             request.resource.data.createdAt == resource.data.createdAt &&\n             request.resource.data.updatedAt == request.time;\n    }\n\n    function isProductDocValid() {\n      return request.resource.data.keys().hasOnly(['neu','prev','diff','lastWho','lastLogAt']) &&\n             request.resource.data.neu is number &&\n             request.resource.data.prev is number &&\n             request.resource.data.diff is number &&\n             request.resource.data.neu >= 0 &&\n             request.resource.data.prev >= 0 &&\n             // keep diff consistent\n             request.resource.data.diff == (request.resource.data.neu - request.resource.data.prev) &&\n             request.resource.data.lastWho is string &&\n             request.resource.data.lastWho.size() <= 120 &&\n             request.resource.data.lastLogAt is timestamp;\n    }\n\n    function isLogDocValid() {\n      return request.resource.data.keys().hasOnly(['when','who','product','delta','source']) &&\n             request.resource.data.when == request.time &&\n             request.resource.data.who is string &&\n             request.resource.data.who.size() <= 120 &&\n             request.resource.data.product is string &&\n             request.resource.data.product.size() >= 1 &&\n             request.resource.data.product.size() <= 120 &&\n             request.resource.data.delta is number &&\n             request.resource.data.delta > 0 &&\n             request.resource.data.delta <= 100000 &&\n             request.resource.data.source is string &&\n             request.resource.data.source.size() <= 40;\n    }\n\n    // Default: deny everything\n    match /{document=**} {\n      allow read, write: if false;\n    }\n\n    // Namespace pattern used by the app: <NAMESPACE>_sessions/<sessionId>/(products|logs)/...\n    match /{ns}_sessions/{sessionId} {\n      allow read: if signedIn();\n\n      // Anyone signed-in can create/update sessions (single shared login model)\n      allow create: if signedIn() && isSessionDocValid();\n      allow update: if signedIn() && isSessionUpdateValid();\n\n      // Avoid accidental deletions\n      allow delete: if false;\n\n      match /products/{productId} {\n        allow read: if signedIn();\n        // Create or update only with valid schema and consistent diff\n        allow create, update: if signedIn() && isProductDocValid();\n        allow delete: if false;\n      }\n\n      match /logs/{logId} {\n        allow read: if signedIn();\n        // Logs are append-only\n        allow create: if signedIn() && isLogDocValid();\n        allow update, delete: if false;\n      }\n    }\n  }\n}\n";
-  if(btnCopyRules && rulesBox) btnCopyRules.addEventListener('click', async ()=>{
-    try{
-      await navigator.clipboard.writeText(rulesBox.value);
-      setStatus(adminStatus, "Regras copiadas para a área de transferência.", "ok");
-    }catch(e){
-      // fallback
-      rulesBox.focus();
-      rulesBox.select();
-      document.execCommand('copy');
-      setStatus(adminStatus, "Regras selecionadas (Ctrl+C / ⌘C).", "ok");
-    }
-  });
-
-
-  
-  // Sessões (contagens)
-  const sessionSelect=document.getElementById('sessionSelect');
-  const btnOpenSession=document.getElementById('btnOpenSession');
-  const btnNewSession=document.getElementById('btnNewSession');
-  const btnDeleteSession=document.getElementById('btnDeleteSession');
-  const sessionStatus=document.getElementById('sessionStatus');
-  const activeSessionLabel=document.getElementById('activeSessionLabel');
-  // Import nova contagem
-  const newFile=document.getElementById('newFile');
-  const btnImportNew=document.getElementById('btnImportNew');
-  const btnClearNewFile=document.getElementById('btnClearNewFile');
-  const importStatus=document.getElementById('importStatus');
-  const chkImportAdd=document.getElementById('chkImportAdd');
-const sugg=document.getElementById('sugg');
-
-  // ================== State ==================
-  let selectedProduct=null;
-  let results=[];
-  let activeIndex=-1;
-
-  // Firebase
-  let connected=false;
-  let db=null;
-  let colProducts=null;
-  let colLogs=null;
-  let unsubProducts=null;
-  let unsubLogs=null;
-  let unsubSessions=null;
-  // Cache for dashboard/stats
-  let lastProducts=[];
-  let lastLogs=[];
-  let currentSessionId = null;
-  let sessionsCache = [];
-
-  // ================== Helpers ==================
-  function normalize(s){ return (s??"").toString().replace(/\s+/g," ").trim(); }
-  function canonKey(s){
-    // normaliza para comparação (minúsculas + sem acentos)
-    return normalize(s).toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  }
-  const PRODUCT_CANON = (function(){
-    const m=new Map();
-    for(const p of PRODUCTS){
-      const k=canonKey(p);
-      if(!m.has(k)) m.set(k,p);
-    }
-    return m;
-  })();
-  function canonicalName(raw){
-    const k=canonKey(raw);
-    return PRODUCT_CANON.get(k) || normalize(raw);
-  }
-  function escapeHtml(str){ return (str??"").toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;'); }
-  function fmt(n){ return Number(n||0).toLocaleString("pt-PT"); }
-  function setStatus(el,msg,kind=""){ el.textContent=msg; el.className="status"+(kind?(" "+kind):""); }
-  function saveCfg(cfg){ localStorage.setItem(CFGKEY, JSON.stringify(cfg||{})); }
-  function loadCfg(){ try{ return JSON.parse(localStorage.getItem(CFGKEY)||"{}"); }catch(e){ return {}; } }
-
-  function makeSessionId(){
-    const d=new Date();
-    const pad=(n)=>String(n).padStart(2,"0");
-    return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}_${Math.random().toString(16).slice(2,6)}`;
-  }
-  function loadSessionId(){
-    try{ return localStorage.getItem(SESSIONKEY) || null; }catch(e){ return null; }
-  }
-  function saveSessionId(id){
-    try{ localStorage.setItem(SESSIONKEY, id||""); }catch(e){}
-  }
-  function setActiveSessionLabel(nameOrId){
-    if(activeSessionLabel) activeSessionLabel.textContent = nameOrId || "—";
-  }
-  function saveQueue(q){ localStorage.setItem(QKEY, JSON.stringify(q||[])); pendingCount.textContent=String((q||[]).length); }
-  function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QKEY)||"[]"); }catch(e){ return []; } }
-
-  function downloadText(filename,text){
-    const blob=new Blob([text],{type:"text/csv;charset=utf-8"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url; a.download=filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),2500);
-  }
-
-  function csvEscape(v){
-    const s = (v===null || v===undefined) ? "" : String(v);
-    // Escape quotes by doubling; wrap in quotes if contains comma, quote, or newline
-    if(/[;"\n\r]/.test(s)){
-      return '"' + s.replace(/"/g,'""') + '"';
-    }
-    return s;
-  }
-  function csvRow(arr){
-    return arr.map(csvEscape).join(";") + "\n";
-  }
-
-  // ================== Tabs ==================
-  function setTab(which){
-    tabEntry.classList.toggle("active", which==="entry");
-    tabDash.classList.toggle("active", which==="dash");
-    tabAdmin.classList.toggle("active", which==="admin");
-    tabImport.classList.toggle("active", which==="import");
-    tabLogs.classList.toggle("active", which==="logs");
-    panelEntry.classList.toggle("hide", which!=="entry");
-    panelDash.classList.toggle("hide", which!=="dash");
-    panelAdmin.classList.toggle("hide", which!=="admin");
-    panelImport.classList.toggle("hide", which!=="import");
-    panelLogs.classList.toggle("hide", which!=="logs");
-if(which==="dash") rebuildDashboard();
-    if(which==="logs"){ logsCursor=null; logsExhausted=false; fetchLogsPage({append:false}).catch(()=>{}); }
+async function signIn(email, pass) {
+  const r = await fetch(AUTH_URL, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password:pass,returnSecureToken:true})});
+  const d = await r.json();
+  if (!r.ok) throw new Error(d?.error?.message || "Login falhou");
+  _idToken = d.idToken; _tokenExp = Date.now() + (Number(d.expiresIn||3600)-60)*1000;
+  _refreshToken = d.refreshToken; _userEmail = d.email||email;
+  try{localStorage.setItem("inv_rt",""+_refreshToken); localStorage.setItem("inv_email",""+_userEmail);}catch(e){}
+  return d;
 }
-  tabEntry.addEventListener("click", ()=>setTab("entry"));
-  tabDash.addEventListener("click", ()=>setTab("dash"));
-  tabAdmin.addEventListener("click", ()=>setTab("admin"));
-  tabImport.addEventListener("click", ()=>setTab("import"));
-  tabLogs.addEventListener("click", ()=>setTab("logs"));
-  if(btnGoImport) btnGoImport.addEventListener('click', ()=>setTab('import'));
-  if(btnGoDash) btnGoDash.addEventListener('click', ()=>setTab('dash'));
 
-// ================== Suggestions ==================
-  function positionSugg(){
-    // A lista está ancorada ao campo de pesquisa (#searchWrap) via CSS (position:absolute).
-    // Só ajustamos a altura máxima consoante o espaço disponível no ecrã.
-    const margin = 10;
-    const wrap = document.getElementById("searchWrap");
-    if(!wrap) return;
+async function refreshIdToken() {
+  if (!_refreshToken) throw new Error("Sem refresh token");
+  const r = await fetch(`https://securetoken.googleapis.com/v1/token?key=${API_KEY}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({grant_type:"refresh_token",refresh_token:_refreshToken})});
+  const d = await r.json();
+  if (!r.ok) throw new Error(d?.error?.message || "Refresh falhou");
+  _idToken = d.id_token||d.idToken; _tokenExp = Date.now()+(Number(d.expires_in||3600)-60)*1000;
+  _refreshToken = d.refresh_token||d.refreshToken||_refreshToken;
+  try{localStorage.setItem("inv_rt",""+_refreshToken);}catch(e){}
+}
 
-    const r = wrap.getBoundingClientRect();
-    const spaceBelow = Math.max(160, window.innerHeight - r.bottom - margin);
-    sugg.style.maxHeight = Math.min(spaceBelow, window.innerHeight*0.6) + "px";
-    // Garantir que fica visível e alinhado
-    sugg.style.left = "0px";
-    sugg.style.top  = (wrap.offsetHeight + 6) + "px";
-    sugg.style.width = "100%";
+async function getToken() {
+  if (_idToken && Date.now() < _tokenExp) return _idToken;
+  if (_refreshToken) { await refreshIdToken(); return _idToken; }
+  throw new Error("Não autenticado");
+}
+
+async function signOut() {
+  _idToken=null; _tokenExp=0; _refreshToken=null; _userEmail="";
+  try{localStorage.removeItem("inv_rt");}catch(e){}
+}
+
+// ===== Firestore REST helpers =====
+function encDocId(id){ return encodeURIComponent(id); }
+
+// Convert JS value → Firestore Value
+function toFV(v) {
+  if (v === null || v === undefined) return {nullValue:null};
+  if (typeof v === "boolean") return {booleanValue:v};
+  if (typeof v === "number") return Number.isInteger(v)?{integerValue:String(v)}:{doubleValue:v};
+  if (typeof v === "string") return {stringValue:v};
+  if (v instanceof Date) return {timestampValue:v.toISOString()};
+  if (Array.isArray(v)) return {arrayValue:{values:v.map(toFV)}};
+  if (typeof v === "object") return {mapValue:{fields:Object.fromEntries(Object.entries(v).map(([k,val])=>[k,toFV(val)]))}};
+  return {stringValue:String(v)};
+}
+
+// Convert Firestore Value → JS value
+function fromFV(fv) {
+  if (!fv) return null;
+  if ("nullValue" in fv) return null;
+  if ("booleanValue" in fv) return fv.booleanValue;
+  if ("integerValue" in fv) return Number(fv.integerValue);
+  if ("doubleValue" in fv) return fv.doubleValue;
+  if ("stringValue" in fv) return fv.stringValue;
+  if ("timestampValue" in fv) return new Date(fv.timestampValue);
+  if ("arrayValue" in fv) return (fv.arrayValue.values||[]).map(fromFV);
+  if ("mapValue" in fv) return fromFDoc(fv.mapValue.fields||{});
+  return null;
+}
+
+function fromFDoc(fields={}) {
+  return Object.fromEntries(Object.entries(fields).map(([k,v])=>[k,fromFV(v)]));
+}
+
+function toFFields(obj) {
+  return Object.fromEntries(Object.entries(obj).map(([k,v])=>[k,toFV(v)]));
+}
+
+// Parse a REST doc response into {id, ...fields}
+function parseDoc(doc) {
+  if (!doc || !doc.name) return null;
+  const id = doc.name.split("/").pop();
+  return {id, ...fromFDoc(doc.fields||{})};
+}
+
+// Auth header
+async function authHdr() { return {"Content-Type":"application/json","Authorization":"Bearer "+(await getToken())}; }
+
+// GET a document
+async function fsGet(path) {
+  const r = await fetch(`${FS_BASE}/${path}`, {headers: await authHdr()});
+  if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.error?.message||r.statusText); }
+  return parseDoc(await r.json());
+}
+
+// SET (create/overwrite) a document — PATCH with updateMask to merge
+async function fsSet(path, data, merge=true) {
+  const fields = toFFields(data);
+  const keys = Object.keys(fields);
+  let url = `${FS_BASE}/${path}`;
+  if (merge && keys.length) url += "?"+keys.map(k=>"updateMask.fieldPaths="+encodeURIComponent(k)).join("&");
+  const r = await fetch(url, {method:"PATCH", headers: await authHdr(), body: JSON.stringify({fields})});
+  if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.error?.message||r.statusText); }
+  return parseDoc(await r.json());
+}
+
+// CREATE (auto-id) a document
+async function fsAdd(collPath, data) {
+  const r = await fetch(`${FS_BASE}/${collPath}`, {method:"POST", headers: await authHdr(), body: JSON.stringify({fields:toFFields(data)})});
+  if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.error?.message||r.statusText); }
+  return parseDoc(await r.json());
+}
+
+// DELETE a document
+async function fsDel(path) {
+  const r = await fetch(`${FS_BASE}/${path}`, {method:"DELETE", headers: await authHdr()});
+  if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.error?.message||r.statusText); }
+}
+
+// LIST documents in a collection (up to pageSize, with optional pageToken)
+async function fsList(collPath, {pageSize=300, orderBy="", pageToken="", filter=""}={}) {
+  let url = `${FS_BASE}/${collPath}?pageSize=${pageSize}`;
+  if (orderBy) url += "&orderBy="+encodeURIComponent(orderBy);
+  if (pageToken) url += "&pageToken="+encodeURIComponent(pageToken);
+  const r = await fetch(url, {headers: await authHdr()});
+  if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.error?.message||r.statusText); }
+  const d = await r.json();
+  return { docs: (d.documents||[]).map(parseDoc), nextPageToken: d.nextPageToken||null };
+}
+
+// Run a query (structured query)
+async function fsQuery(collPath, {orderBy=[], limit=300, startAfter=null}={}) {
+  const q = { structuredQuery: { from:[{collectionId: collPath.split("/").pop()}], orderBy: orderBy.map(o=>({field:{fieldPath:o.field}, direction:o.dir||"ASCENDING"})), limit } };
+  if (startAfter) q.structuredQuery.startAt = { values: startAfter, before: false };
+  // Run from parent
+  const parentPath = collPath.split("/").slice(0,-1).join("/");
+  const url = `${FS_BASE}/${parentPath}:runQuery`;
+  const r = await fetch(url, {method:"POST", headers: await authHdr(), body: JSON.stringify(q)});
+  if (!r.ok) { const e=await r.json().catch(()=>{}); throw new Error(e?.error?.message||r.statusText); }
+  const arr = await r.json();
+  return (arr||[]).filter(x=>x.document).map(x=>parseDoc(x.document));
+}
+
+// Transaction (read-modify-write) via REST batch write + get
+// For simplicity we use optimistic update: GET then PATCH (good enough for inventory)
+async function fsTransaction(path, updateFn) {
+  for (let attempt=0; attempt<3; attempt++) {
+    const doc = await fsGet(path).catch(()=>({id:path.split("/").pop()}));
+    const newData = await updateFn(doc||{});
+    await fsSet(path, newData, false); // overwrite
+    return;
   }
-  function closeSugg(){ sugg.style.display="none"; activeIndex=-1; }
-  function openSugg(){ if(!results.length){closeSugg();return;} positionSugg(); sugg.style.display="block"; }
-  function renderSugg(){
-    if(!results.length){sugg.innerHTML=""; closeSugg(); return;}
-    sugg.innerHTML = results.map((p,idx)=> {
-      const cls=idx===activeIndex ? "item active" : "item";
-      return `<div class="${cls}" data-idx="${idx}" title="${escapeHtml(p)}">${escapeHtml(p)}</div>`;
-    }).join("");
-    openSugg();
-  }
-  sugg.addEventListener("click",(e)=> {
-    const el=e.target.closest("[data-idx]"); if(!el) return;
-    pickProduct(results[Number(el.getAttribute("data-idx"))]);
+}
+
+// ================== PRODUCTS ==================
+const PRODUCTS = ["SKU2072 CHRISTMAS TREE 220CM","SKU2118 MULTIF JUICER","SKU2226 TOURIST GRILL","SKU229 SEWING MACHINE","SKU4011 FIREPLACE","SKU414 DRONE","SKU428 MINI AIR CONDITIONER","SKU541 HEDGE TRIMMERS","SKU547 THERMOSTATIC WATER HEATER","SKU6062 COLUMN AIR CONDITIONER","SKUCR7021 STEAMER","SKU058 GARDEN SHEARS","SKU2132 SHOWER HEAD","SKU368 MINI SAW","SKU511 CAMPING COOKWARE","SKU517 ANTENNA","SKU006 SILICONE KITCHEN GLOVES","SKU012 (X5) SOLAR LAMP SET","SKU017 BATTERY POWERED TRIMMER","SKU024 EMBROIDERY KIT","SKU028 (X2) RODENT REPELLENT","SKU030 AIR FRESHNER","SKU037 ELECTRONIC KITCHEN SCALE","SKU048 WARMING OINTMENT","SKU059 FOOT MASSAGE SLIPPERS","SKU060 MAGNETIC CLEANER","SKU069 MINI WIRELESS CAMERA","SKU085B MOSQUITO REPELLENT WATCH","SKU094 SET SILICON","SKU113 AIR HUMIDIFIER DIFFUSER","SKU114 NECK MASSAGER","SKU117 BLUETOOTH GPS KEY DOG CAT FINDER","SKU130 MASSAGE GUN","SKU152 DRIVING RECORDER","SKU172 WIRELESS KEYBOARD","SKU181 TEFLON MAT FOR GRILL OVEN BAKING","SKU191 CAR MIRROR RECORDER","SKU1999 CASE","SKU2008 MEMORY CARD","SKU201 GARDEN GLOVES","SKU2021 TWO CHAINS AND A GUIDE FOR A MINI SAW","SKU2030 DRONE BATTERY","SKU2035 JUICEMAKER","SKU2042 CAMERA PEN","SKU2045 PHEROM ONE PLUS","SKU2054 ELECTRIC LUNCHBOX","SKU2055 LEAF BLOWER","SKU2059 FEET WARMER","SKU2065 MEIAS TÉRMICAS COM TURMALINA","SKU2067 REFIL FILTER FOR VACUUM CLEANER","SKU2068 PORTABLE ELECTRIC HEATER","SKU2069 AIR CURTAIN","SKU2077 ELECTRIC FIREPLACE","SKU2078 CHRISTMAS CURTAIN","SKU2079 HEATED VEST","SKU2081 HEATED GLOVES","SKU2082 ELECTRIC HEATER BLANKET","SKU2084 ELECTRIC WATER HEATER","SKU2090 MINI THERMAL PRINTER","SKU2106 CLOTHES CHAVER","SKU2111 GPS LOCATOR","SKU2112 PAPER FOR A MINI PRINTER SET5","SKU2113 HAND CRAFTING KIT","SKU2116 AUTOMATIC HAIR CURLER","SKU2117 BATTERY FOR A TRIMMER","SKU2119 SILVER SLICER","SKU2121 MINI OVEN","SKU2122 TOPPER","SKU2124 BATTERY FOR A SCREWDRIVER","SKU2130 SMARTWATCH","SKU2131 WAIST TRAINER","SKU2133 BATTERY FOR SCISSORS","SKU2149 SLICER SHREDDER","SKU2153 SUPHUM FOCUS MEMORY","SKU2154 SUPHUM HAIR GROWTH","SKU2155 SUPHUM WEIGHT LOSS","SKU2159 HAMMOCK","SKU2160 ELECTRIC GRILL BBQ","SKU2165 CLOTHES HANGER SET","SKU2169 SPORT BLENDER","SKU2170 GRASS TRIMMER BLADES","SKU2171 LAMP WITH CHARGER","SKU2178 FOLDING FAN","SKU2183 THERMAL BAG","SKU2185 COOLING INSERT FOR AIR CONDITIONER","SKU2195 3 IN 1 BREAKFAST MAKER","SKU2197 CAMPING HAMMOCK","SKU2199 BLOWER BATTERY 48V","SKU2202 SPARE SCISSOR BLADES","SKU2205 CHRISTMAS LASER LIGHT","SKU2211 CHRISTMAS TRAIN","SKU2217 SEWING MACHINE TABLE","SKU2218 AIR HUMIDIFIER WITH FLAME EFECT","SKU2220 MATTRESS PUMP","SKU2221 USB CABLE","SKU2228 TANKLESS ELECTRIC WATER HEATER","SKU2234 NAIL DRILL","SKU2237 PLASTIC WELDING MACHINE","SKU2238 KNIFE SHARPENER","SKU279 TRIMMER","SKU290 TACTICAL FLASHLIGHT","SKU294 ROTATING CAMERA","SKU301 CAR HANDSFREE BLUETOOTH V30","SKU311 WATERPROOF SOLAR LAMP","SKU312 GLASSES ONE POWER","SKU317 SWEEPING ROBOT","SKU329 FOOD QUICK DEFROSTING TRAY","SKU350 DISK LIGHTS","SKU352 SOLAR POWER BANK","SKU357 GRILLING TOOLS","SKU360 GARDEN FOUNTAIN","SKU361 VIDEODOMOFON","SKU364 WIRELESS SCREW CAMERA","SKU375 WIRELESS HEADPHONE","SKU380 CORDLESS ELECTRIC CLEANING BRUSH","SKU384 STARTER KIT","SKU390 CAR CAMERA","SKU393 COOKWARE SET","SKU395 SCREWDRIVER","SKU4000 CONJUNTO DE 10 PANOS MICROFIBRA MULTIUSOS 30X30","SKU4004 APARADOR DE NARIZ","SKU4005 CONJUNTO DE LÂMINAS","SKU4009 MOPA TRIANGULAR","SKU403 SILICONE BAG FOR DOUGH","SKU412 MINI LANTERNA DE BOLSO","SKU413 POWERBANK SOLAR DE BOLSO","SKU419 HEADLAMP","SKU421 BAGLESS VACUUM","SKU424 RETRO CONSOLE","SKU430 ENERGY SAVER","SKU431 PRESSURE WASHER","SKU435 VEGETABLE CHOPPER","SKU436 FOLDING GLASSES","SKU438 CAR VACUUM CLEANER","SKU439 BATTERY 21V","SKU454 MOSQUITO NET 2X1","SKU456 GRASS TRIMMER","SKU460 GRINDER AND DRILL","SKU461 LIQUID SEALING SPRAY","SKU464 DESIGN PORTABLE BLENDER","SKU466 CORDLESS SCISSORS","SKU470 INTEX INFLATABLE MATTRESS","SKU474 MULTICOOKER","SKU475 S POSTURE CORRECTOR","SKU475 M POSTURE CORRECTOR","SKU475 L POSTURE CORRECTOR","SKU475 XL POSTURE CORRECTOR","SKU475 XXL POSTURE CORRECTOR","SKU475 XXXL POSTURE CORRECTOR","SKU484 ADAPTER","SKU486 CORDLESS IRON","SKU497 CONSOLE","SKU498 WI-FI SIGNAL BOOSTER","SKU503 GAMEPAD COLOR","SKU506 ASTRONAUT PROJECTOR","SKU507 (X2) SOLAR STREET LAMP","SKU510 PORTABLE TRAVEL GRILL","SKU520 PASTA MACHINE","SKU521 SINK POPUP FILTER","SKU523 SPRAYER","SKU532 INFLATABLE BED","SKU534 MAGNETIC BAND","SKU537 SPRAY GUN","SKU546 COOLING AND HEATING AIR CONDITIONER","SKU552 TRANSLATOR","SKU563 PROTECTIVE BAG FOR FOLDING GLASSES","SKU6014 LAUNDRY DRYER CABINET","SKU6071 GRAY SOCKET HEATER","SKU6073 BLACK HEATER IMITATING FIRE","SKU6093 SMARTWATCH V17","SKU6093-1 SMARTWATCH FILMS","SKU7007 HEDGE TRIMMERS","SKU7019 SOLAR POWERBANK","SKUAD1199 KARAOKE SPEAKER","SKUAD2943 HAIR RAZOR","SKUAD2944 HAIR CARE KIT","SKUAD4226 PLANETARY ROBOT","SKUAD7036 1 FILTER FOR HAND VACUUM CLEANER","SKUAD7860 DEHUMIDIFIER","SKUCR4457 CHOCOLATE FOUNTAIN","SKUEKM 033 MEAT MINCER","SKUMS2152 FOOT CARE MASSAGER","SKURB9281 KITCHEN KNIVES","SKUZL7055 MARBLE POTS","SKU7015 BATTERY CHARGER","SKU7021 FOLDING WASHING MACHINE","SKU2190 XL CAR PROTECTOR","SKU2190 L CAR PROTECTOR","SKU2175 AUTOMATIC SPRINKLER","SKU7055 WINDOW CLEANING ROBOT","SKU7017 TRANSLATOR EARBUDS","SKU180 ANTI-CELLUITE MASSAGER","SKU7012 LASER HAIR REMOVAL KIT","SKU7032 LIQUID LAWN","SKU2134 EYE MASSAGER","SKU416-5 USB CAMERA","SKU437 MOSQUITO LAMP","SKU354 SLICER","SKU7036 S SHOE INSERTS","SKU7036 M SHOE INSERTS","SKU7036 L SHOE INSERTS","WARRANTY ES","WARRANTY PT","SKU7001 BODY MASSAGER","SKU2079 S M HEATED VEST","SKU2079 L HEATED VEST","SKU2079 XL XXL HEATED VEST","SKU436 15 FOLDING GLASSES","SKU436 2 FOLDING GLASSES","SKU436 25 FOLDING GLASSES","SKU436 3 FOLDING GLASSES","SKU387 HAIR SET BRUSH CURLER DRYER","SKU083 ZOOM LENS TELESCOPE","SKU533 BIG SOLAR LAMP","SKU551 PLANETARY MIXER","SKU327 MOSQUITO KILLER","SKU2129 FURNITURE ROLLERS","SKU2122-2 TOPPER 180x200","SKU125 POWERFUL GUN MASSAGER","SKU2248 SET OF LAMP AND CAMERA IN A BULB","SKU513 MEAT MINCER","SKUAD3223 TOASTER","SKU146 CAMERA MINI FULL HD","SKU6094 AIR COMPRESOR","SKU2152 WELDING MACHINE","SKU7006 GLUE GUN","SKU422 ROTATING MOP","SKU2244 COVER FOR TRANSPORTING ANIMALS","SKU090 PET NAIL FILE","SKU016 PORTABLE DOG WATER BOTTLE","SKU7003 LED FACE MASK","SKU559 FLAT SPIN MOP INSERT","SKU7027 SET OF KEYS","SKU2053 REFIL FILTER FOR VACUUM CLEANER","SKU7034 ELECTRIC WASHER","SKU6074 WHITE HEATER WITH IMITATION FIRE","SKU137 PORTABLE MINI HEATER","SKU6072 ELECTRIC NECK WARMER","SKU459 MASSAGER","SKU441 FOOD SEALER","SKU2250 FLASHLIGHT MINI SAW PRECATEUR","SKU2138 MULTI-TOOL","SKU457 TOURIST COOKER","SKU3002 SHOE INSERTS","SKU2210 SMART LIGHTS","SKU7028 SCOODIE - R - HOODED SCARF","SKU7028 SCOODIE - L - HOODED SCARF","SKU473 AUTOMATIC WASTE BIN","SKU2057 FAN HEATER LED","SKUEKA001 FAT-FREE FRYER","SKU2105 PLATINUM SCRATCH REMOVER","SKU2260 GALAXY PROJECTOR","SKUMS9610 LINT REMOVER"];
+
+// Firebase config embedded above as REST constants
+
+const CFGKEY="inv_cfg_v3", SESSIONKEY="inv_session_v1", QKEY="inv_pending_v3", SELKEY="inv_selected_v3";
+
+// ===== Elements =====
+const $ = id => document.getElementById(id);
+const loginGate=$('loginGate'), gateEmail=$('gateEmail'), gatePass=$('gatePass'), gateLogin=$('gateLogin'), gateStatus=$('gateStatus');
+const activeSessionLabel=$('activeSessionLabel'), userChip=$('userChip'), btnLogout=$('btnLogout');
+const search=$('search'), sugg=$('sugg');
+const selectedCard=$('selectedCard'), selectedEmpty=$('selectedEmpty'), selectedName=$('selectedName'), selectedStats=$('selectedStats'), statNeu=$('statNeu'), btnClearSel=$('btnClearSel');
+const qty=$('qty'), btnAddCustom=$('btnAddCustom'), btnSync=$('btnSync');
+const entryStatus=$('entryStatus'), pendingCount=$('pendingCount'), newQty=$('newQty');
+const dashFilter=$('dashFilter'), discBody=$('discBody'), discCount=$('discCount'), dashStatus=$('dashStatus');
+const btnExportDiff=$('btnExportDiff'), btnExportNew=$('btnExportNew');
+const logsFilter=$('logsFilter'), logsLimit=$('logsLimit'), logsBody=$('logsBody'), logsStatus=$('logsStatus');
+const btnExportLogs=$('btnExportLogs'), btnRefreshLogs=$('btnRefreshLogs'), btnLoadMoreLogs=$('btnLoadMoreLogs');
+const namespace=$('namespace'), btnConnect=$('btnConnect');
+const sessionSelect=$('sessionSelect'), btnOpenSession=$('btnOpenSession'), btnNewSession=$('btnNewSession'), btnDeleteSession=$('btnDeleteSession'), sessionStatus=$('sessionStatus');
+const btnInit=$('btnInit'), btnResetNew=$('btnResetNew'), prevFile=$('prevFile'), adminStatus=$('adminStatus');
+const newFile=$('newFile'), btnImportNew=$('btnImportNew'), btnClearNewFile=$('btnClearNewFile'), importStatus=$('importStatus'), chkImportAdd=$('chkImportAdd');
+const rulesBox=$('rulesBox'), btnCopyRules=$('btnCopyRules');
+
+// ===== State =====
+let selectedProduct=null, results=[], activeIndex=-1;
+let connected=false;
+let lastProducts=[], lastLogs=[], currentSessionId=null, sessionsCache=[];
+let logsCursor=null, logsExhausted=false;
+let _newFileCache=null;
+let _pollInterval=null;
+
+// Paths
+const getNamespaceRaw = () => normalize(namespace.value || loadCfg().namespace || "") || "inv_default";
+const sessionsCol = () => `${getNamespaceRaw()}_sessions`;
+const productsCol = () => `${sessionsCol()}/${currentSessionId}/products`;
+const logsCol     = () => `${sessionsCol()}/${currentSessionId}/logs`;
+
+// ===== Helpers =====
+const normalize = s => (s??"").toString().replace(/\s+/g," ").trim();
+const canonKey = s => normalize(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const PRODUCT_CANON = (()=>{ const m=new Map(); for(const p of PRODUCTS){ const k=canonKey(p); if(!m.has(k)) m.set(k,p); } return m; })();
+const canonicalName = raw => PRODUCT_CANON.get(canonKey(raw)) || normalize(raw);
+const escHtml = s => (s??"").toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+const fmt = n => Number(n||0).toLocaleString("pt-PT");
+const saveCfg = cfg => localStorage.setItem(CFGKEY, JSON.stringify(cfg||{}));
+const loadCfg = () => { try{ return JSON.parse(localStorage.getItem(CFGKEY)||"{}"); }catch(e){ return {}; } };
+const loadSessionId = () => { try{ return localStorage.getItem(SESSIONKEY)||null; }catch(e){ return null; } };
+const saveSessionId = id => { try{ localStorage.setItem(SESSIONKEY, id||""); }catch(e){} };
+const loadQueue = () => { try{ return JSON.parse(localStorage.getItem(QKEY)||"[]"); }catch(e){ return []; } };
+const saveQueue = q => { localStorage.setItem(QKEY, JSON.stringify(q||[])); pendingCount.textContent=String((q||[]).length); const d=$('tabEntry'); if(d){ const dot=d.querySelector('.pending-dot'); if(dot) dot.classList.toggle('hide', !(q||[]).length); } };
+
+
+function setMsg(el, msg, kind="") { el.textContent=msg; el.className=(el.className.replace(/\s*(ok|warn|bad)/g,''))+(kind?" "+kind:""); }
+
+function makeSessionId(){
+  const d=new Date(), p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}_${Math.random().toString(16).slice(2,6)}`;
+}
+
+function downloadText(filename, text){
+  const blob=new Blob([text],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2500);
+}
+
+function csvEsc(v){ const s=(v===null||v===undefined)?"":String(v); return /[;"\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+function csvRow(arr){ return arr.map(csvEsc).join(";")+"\n"; }
+
+function fmtWhen(t){
+  if(!t) return "—";
+  try{
+    const d=t instanceof Date?t:new Date(t);
+    return d.toLocaleDateString("pt-PT")+' '+d.toLocaleTimeString("pt-PT",{hour:'2-digit',minute:'2-digit'});
+  }catch(e){ return "—"; }
+}
+
+// ===== CSV Parse =====
+function splitLine(line, sep){ const out=[]; let cur="", q=false; for(let i=0;i<line.length;i++){ const ch=line[i]; if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++;}else q=!q;}else if(ch===sep&&!q){out.push(cur);cur="";}else cur+=ch;} out.push(cur); return out.map(x=>x.trim()); }
+function parseCSV(text){ const lines=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l=>l.trim()); if(!lines.length) return []; const seps=[',',';','\t','|']; let sep=',', best=1; for(const c of seps){ const cols=splitLine(lines[0],c).length; if(cols>best){best=cols;sep=c;} } return lines.map(l=>splitLine(l,sep)); }
+function parseQty(s){ const t=String(s??"").trim().replace(/\./g,'').replace(',','.'); const n=Number(t); return isFinite(n)?n:0; }
+
+// ===== TABS =====
+function setTab(which){
+  ['entry','dash','import','logs','admin'].forEach(t=>{
+    $(`tab${t.charAt(0).toUpperCase()+t.slice(1)}`).classList.toggle('active', t===which);
+    $(`panel${t.charAt(0).toUpperCase()+t.slice(1)}`).classList.toggle('active', t===which);
   });
-  document.addEventListener("click",(e)=>{ if(e.target===search || sugg.contains(e.target)) return; closeSugg(); });
-  window.addEventListener("resize",()=>{ if(sugg.style.display==="block") positionSugg(); });
+  if(which==='dash') rebuildDashboard();
+  if(which==='logs'){ logsCursor=null; logsExhausted=false; fetchLogsPage({append:false}).catch(()=>{}); }
+}
 
-  function pickProduct(p){
-    selectedProduct=p;
-    selected.value=p;
-    search.value="";
-    closeSugg();
-    localStorage.setItem(SELKEY, p);
-    qty.focus();
-    refreshProductStats();
+// ===== SUGGESTIONS =====
+function closeSugg(){ sugg.style.display="none"; activeIndex=-1; }
+function renderSugg(){
+  if(!results.length){ sugg.innerHTML=""; sugg.style.display="none"; return; }
+  sugg.innerHTML = results.map((p,i)=>`<div class="sugg-item${i===activeIndex?' active':''}" data-idx="${i}">${escHtml(p)}</div>`).join("");
+  sugg.style.display="block";
+}
+sugg.addEventListener("click", e=>{ const el=e.target.closest("[data-idx]"); if(el) pickProduct(results[+el.dataset.idx]); });
+document.addEventListener("click", e=>{ if(e.target===search||sugg.contains(e.target)) return; closeSugg(); });
+
+function pickProduct(p){
+  selectedProduct=p;
+  selectedEmpty.classList.add('hide');
+  selectedName.textContent=p; selectedName.classList.remove('hide');
+  selectedStats.classList.remove('hide');
+  btnClearSel.classList.remove('hide');
+  selectedCard.classList.add('has-product');
+  search.value=""; closeSugg();
+  localStorage.setItem(SELKEY, p);
+  qty.focus();
+  refreshProductStats();
+}
+
+btnClearSel.addEventListener("click", ()=>{
+  selectedProduct=null;
+  selectedEmpty.classList.remove('hide');
+  selectedName.classList.add('hide');
+  selectedStats.classList.add('hide');
+  btnClearSel.classList.add('hide');
+  selectedCard.classList.remove('has-product');
+  statNeu.textContent="—"; newQty.textContent="—";
+  localStorage.removeItem(SELKEY);
+  search.focus();
+});
+
+search.addEventListener("input", ()=>{
+  const q=normalize(search.value).toLowerCase();
+  if(!q){ results=[]; renderSugg(); return; }
+  const pref=[], rest=[];
+  for(const p of PRODUCTS){
+    const pl=p.toLowerCase();
+    if(!pl.includes(q)) continue;
+    if(pl.startsWith(q)||pl.includes(" "+q)) pref.push(p); else rest.push(p);
+    if(pref.length+rest.length>=30) break;
   }
+  results=pref.concat(rest).slice(0,30);
+  activeIndex=results.length?0:-1;
+  renderSugg();
+});
 
-  search.addEventListener("input",()=> {
-    const q=normalize(search.value).toLowerCase();
-    if(!q){results=[]; renderSugg(); return;}
-    const pref=[], rest=[];
-    for(const p of PRODUCTS){
-      const pl=p.toLowerCase();
-      if(!pl.includes(q)) continue;
-      if(pl.startsWith(q) || pl.includes(" "+q)) pref.push(p); else rest.push(p);
-      if(pref.length+rest.length>=30) break;
-    }
-    results=pref.concat(rest).slice(0,30);
-    activeIndex=results.length?0:-1;
-    renderSugg();
-  });
-  search.addEventListener("keydown",(e)=> {
-    if(e.key==="Escape"){ search.value=""; results=[]; renderSugg(); closeSugg(); return; }
-    if(e.key==="ArrowDown"){ if(!results.length) return; e.preventDefault(); activeIndex=Math.min(activeIndex+1, results.length-1); renderSugg(); return; }
-    if(e.key==="ArrowUp"){ if(!results.length) return; e.preventDefault(); activeIndex=Math.max(activeIndex-1, 0); renderSugg(); return; }
-    if(e.key==="Enter"){ if(results.length && activeIndex>=0){ e.preventDefault(); pickProduct(results[activeIndex]); } }
-  });
+search.addEventListener("keydown", e=>{
+  if(e.key==="Escape"){ search.value=""; results=[]; renderSugg(); return; }
+  if(e.key==="ArrowDown"){ if(!results.length) return; e.preventDefault(); activeIndex=Math.min(activeIndex+1,results.length-1); renderSugg(); return; }
+  if(e.key==="ArrowUp"){ if(!results.length) return; e.preventDefault(); activeIndex=Math.max(activeIndex-1,0); renderSugg(); return; }
+  if(e.key==="Enter"){ if(results.length&&activeIndex>=0){ e.preventDefault(); pickProduct(results[activeIndex]); } }
+});
 
-  // ================== CSV parsing ==================
-  function splitLine(line, sep){
-    const out=[]; let cur=""; let q=false;
-    for(let i=0;i<line.length;i++){
-      const ch=line[i];
-      if(ch==='"'){ if(q && line[i+1]==='"'){cur+='"'; i++;} else q=!q; }
-      else if(ch===sep && !q){ out.push(cur); cur=""; }
-      else cur+=ch;
-    }
-    out.push(cur);
-    return out.map(x=>x.trim());
+// ===== PRODUCT STATS =====
+function refreshProductStats(silent=false){
+  if(!selectedProduct||!connected) return;
+  const p=lastProducts.find(x=>x.id===selectedProduct||x.name===selectedProduct);
+  if(p){
+    statNeu.textContent=fmt(p.neu);
+    newQty.textContent=fmt(p.neu);
   }
-  function parseCSV(text){
-    const lines=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l=>l.trim().length);
-    if(!lines.length) return [];
-    const seps=[',',';','\t','|'];
-    let sep=',', best=1;
-    for(const cand of seps){ const cols=splitLine(lines[0], cand).length; if(cols>best){best=cols; sep=cand;} }
-    return lines.map(l=>splitLine(l, sep));
-  }
-  function parseQty(s){
-    const t=String(s??"").trim().replace(/\./g,'').replace(',', '.');
-    const n=Number(t); return isFinite(n)?n:0;
-  }
-
-  // ================== Firebase connect ==================
-  function getNamespace(){
-    const cfg=loadCfg();
-    const ns=normalize(namespaceInput.value || cfg.namespace || "");
-    return ns || "inv_default";
-  }
-
-  async function connectFirebase(){
-    if(connected) return true;
-    try{
-      const ns=getNamespace();
-      saveCfg({ namespace: ns });
-
-      // init firebase (idempotente)
-      firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
-      const auth = firebase.auth();
-      db = firebase.firestore();
-
-      // Offline persistence (IndexedDB) was removed to avoid deprecation warnings.
-      // App works normally online. If you need offline cache again, we can migrate to the new Firestore cache API.
-
-      // Exigir login (gate já trata disto)
-      if(!auth.currentUser){
-        connected=false;
-        return false;
-      }
-
-      // Coleções (por contagem/sessão)
-      const colSessions = db.collection(ns + "_sessions");
-
-      // sessão guardada no dispositivo
-      if(!currentSessionId){
-        currentSessionId = loadSessionId();
-      }
-
-      // Se não houver sessão ativa, escolhe a mais recente; se não existir, cria "Default"
-      if(!currentSessionId){
-        try{
-          const snap = await colSessions.orderBy("createdAt","desc").limit(1).get();
-          if(!snap.empty){
-            const doc = snap.docs[0];
-            currentSessionId = doc.id;
-            saveSessionId(currentSessionId);
-          }
-        }catch(e){}
-      }
-
-      if(!currentSessionId){
-        try{
-          const id = makeSessionId();
-          await colSessions.doc(id).set({
-            name: "Default",
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            createdBy: (firebase.auth().currentUser?.email || firebase.auth().currentUser?.uid || "")
-          }, {merge:true});
-          currentSessionId = id;
-          saveSessionId(id);
-        }catch(e){
-          connected=false;
-          setStatus(sessionStatus, "⚠ Não foi possível criar sessão Default. Veja permissões do Firestore.", "bad");
-          setActiveSessionLabel("—");
-          return false;
-        }
-      }
-
-      colProducts = colSessions.doc(currentSessionId).collection("products");
-      colLogs = colSessions.doc(currentSessionId).collection("logs");
-connected=true;
-      setStatus(adminStatus, `✅ Ligado ao Firestore (namespace: ${ns}). Contagem: ${currentSessionId}`, "ok");
-      setStatus(status, `✅ Ligado e autenticado (namespace: ${ns}).`, "ok");
-      try{
-        const s = sessionsCache.find(x=>x.id===currentSessionId);
-        setActiveSessionLabel(s ? s.name : currentSessionId);
-      }catch(e){}
-
-      try{
-        const user = firebase.auth().currentUser;
-        if(whoDisplay && user) whoDisplay.value = (user.email || user.uid);
-      }catch(e){}
-
-      if(unsubProducts) unsubProducts();
-      unsubProducts = colProducts.onSnapshot((snap)=>{
-        const arr=[];
-        snap.forEach(doc=>{
-          const d=doc.data()||{};
-          arr.push({ id: doc.id, name: d.name||doc.id, prev: Number(d.prev||0), neu: Number(d.neu||0), uploadNew: Number(d.uploadNew||0), lastWho: d.lastWho||"" });
-        });
-        lastProducts=arr;
-        if(!panelDash.classList.contains("hide")) rebuildDashboard();
-        if(selectedProduct) refreshProductStats(true);
-      }, (err)=>{
-        setStatus(dashStatus, "Erro realtime: " + (err.message||err), "warn");
-      });
-
-      
-      // Logs realtime (últimos N)
-      try{
-        if(unsubLogs) unsubLogs();
-        const lim = Number(logsLimit?.value||300) || 300;
-        unsubLogs = colLogs.orderBy("ts","desc").limit(lim).onSnapshot((snap)=>{
-          const arr=[];
-          snap.forEach(doc=>{
-            const d=doc.data()||{};
-            // ts pode ser Timestamp; guardar ms
-            let t=null;
-            try{ t = d.ts && d.ts.toDate ? d.ts.toDate() : null; }catch(e){}
-            arr.push({ when: t, who: d.who||"", product: d.product||"", delta: Number(d.delta||0) });
-          });
-          lastLogs=arr;
-          if(!panelLogs.classList.contains("hide")) rebuildLogs();
-        }, (err)=>{
-          setStatus(logsStatus, "Erro realtime logs: " + (err.message||err), "warn");
-        });
-      }catch(e){}
-
-      return true;
-    }catch(err){
-      connected=false;
-      setStatus(adminStatus, (err.message||String(err)), "bad");
-      setStatus(status, "Não foi possível ligar ao Firebase. Veja Admin.", "bad");
-      return false;
-    }
-  }
-  // ================== Sessões (contagens) ==================
-  async function loadSessions(){
-    if(!connected){
-      // ainda não ligado: tentar ligar se já houver login e sessão
-      return;
-    }
-    try{
-      const ns=getNamespace();
-      const colSessions = db.collection(ns + "_sessions");
-      if(unsubSessions) unsubSessions();
-      unsubSessions = colSessions.orderBy("createdAt","desc").limit(200).onSnapshot((snap)=>{
-        const arr=[];
-        snap.forEach(doc=>{
-          const d=doc.data()||{};
-          arr.push({id: doc.id, name: d.name || doc.id, createdAt: d.createdAt||null});
-        });
-        sessionsCache=arr;
-        if(sessionSelect){
-          sessionSelect.innerHTML = arr.map(s=>{
-            const sel = (s.id===currentSessionId) ? "selected" : "";
-            return `<option value="${escapeHtml(s.id)}" ${sel}>${escapeHtml(s.name)} (${escapeHtml(s.id)})</option>`;
-          }).join("");
-        }
-        const current = arr.find(x=>x.id===currentSessionId);
-        setActiveSessionLabel(current ? current.name : (currentSessionId||"—"));
-        setStatus(sessionStatus, currentSessionId ? `Contagem ativa: ${current ? current.name : currentSessionId}` : "Sem contagem ativa.", currentSessionId ? "ok" : "warn");
-      });
-    }catch(e){
-      setStatus(sessionStatus, "Erro ao carregar contagens: " + (e.message||e), "warn");
-    }
-  }
-
-  async function createNewSession(){
-    if(!await connectFirebase()){
-      setStatus(sessionStatus, "Precisa de login + ligação ao Firebase para criar contagem.", "warn");
-      return;
-    }
-    try{
-      const ns=getNamespace();
-      const colSessions = db.collection(ns + "_sessions");
-      const name = prompt("Nome da nova contagem (ex.: Fim de mês Fevereiro 2026):");
-      if(!name) return;
-
-      const id = makeSessionId();
-      await colSessions.doc(id).set({
-        name: name.trim(),
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        createdBy: (firebase.auth().currentUser?.email || firebase.auth().currentUser?.uid || "")
-      }, {merge:true});
-
-      currentSessionId = id;
-      saveSessionId(id);
-      setActiveSessionLabel(name.trim());
-      setStatus(sessionStatus, `✅ Nova contagem criada: ${name} (${id}).`, "ok");
-
-      // Re-ligar às subcoleções desta sessão
-      connected=false;
-      if(unsubProducts){ try{unsubProducts();}catch(e){} unsubProducts=null; }
-      if(unsubLogs){ try{unsubLogs();}catch(e){} unsubLogs=null; }
-      lastProducts=[]; lastLogs=[];
-      await connectFirebase();
-        await loadSessions();
-      await loadSessions();
-      // Vai para Admin para inicializar/importar (se quiser)
-      setTab("admin");
-    }catch(e){
-      setStatus(sessionStatus, "Erro a criar contagem: " + (e.message||e), "bad");
-    }
-  }
+}
 
 
-  // Apagar contagem (sessão) selecionada — remove doc da sessão + subcoleções products/logs
-  async function deleteSelectedSession(){
-    if(!await connectFirebase()){
-      setStatus(sessionStatus, "Precisa de login + ligação ao Firebase para apagar.", "warn");
-      return;
-    }
-    const id = sessionSelect.value;
-    if(!id){
-      setStatus(sessionStatus, "Selecione uma contagem para apagar.", "warn");
-      return;
-    }
-    const name = (sessionSelect.options[sessionSelect.selectedIndex]?.textContent || id).trim();
-    const ok = confirm("APAGAR esta contagem?\n\n" + name + "\n\nIsto remove produtos e logs e NÃO dá para recuperar.");
-    if(!ok) return;
 
-    try{
-      setStatus(sessionStatus, "A apagar… (pode demorar em contagens grandes)", "warn");
-      const ns = getNamespace();
-      const sessRef = db.collection(ns + "_sessions").doc(id);
-
-      // apaga subcoleções em batches
-      await deleteCollectionInBatches(sessRef.collection("products"), 450);
-      await deleteCollectionInBatches(sessRef.collection("logs"), 450);
-
-      // apaga doc da sessão
-      await sessRef.delete();
-
-      // refresca UI
-      if(currentSessionId === id) currentSessionId = "";
-      await loadSessions();
-      setStatus(sessionStatus, "Contagem apagada: " + name, "ok");
-    }catch(e){
-      console.error(e);
-      setStatus(sessionStatus, "Erro ao apagar: " + (e.message||e), "bad");
-    }
-  }
-
-  async function deleteCollectionInBatches(colRef, batchSize){
-    // loop até não haver mais docs
-    while(true){
-      const snap = await colRef.orderBy(firebase.firestore.FieldPath.documentId()).limit(batchSize).get();
-      if(snap.empty) break;
-      const batch = db.batch();
-      snap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      // pequena cedência ao UI
-      await new Promise(r=>setTimeout(r, 0));
-    }
-  }
-
-  async function openSelectedSession(){
-    if(!await connectFirebase()){
-      setStatus(sessionStatus, "Precisa de login + ligação ao Firebase.", "warn");
-      return;
-    }
-    const id = sessionSelect ? sessionSelect.value : null;
-    if(!id){ setStatus(sessionStatus, "Selecione uma contagem.", "warn"); return; }
-    currentSessionId = id;
-    saveSessionId(id);
-    setStatus(sessionStatus, `✅ Contagem aberta: ${id}`, "ok");
-
-    // Re-ligar às subcoleções desta sessão
-    connected=false;
-    if(unsubProducts){ try{unsubProducts();}catch(e){} unsubProducts=null; }
-    if(unsubLogs){ try{unsubLogs();}catch(e){} unsubLogs=null; }
-    lastProducts=[]; lastLogs=[];
-    await connectFirebase();
-    await loadSessions();
-  }
-
-  if(btnNewSession) btnNewSession.addEventListener("click", ()=>createNewSession());
-  btnDeleteSession.addEventListener("click", ()=>deleteSelectedSession());
-  if(btnOpenSession) btnOpenSession.addEventListener("click", ()=>openSelectedSession());
-
-
-  // Login / Registo / Logout (ADMIN - só logout fica visível)
-
-  function rememberEmail(){
-    try{ localStorage.setItem("inv_auth_email_v1", (authEmail.value||"").trim()); }catch(e){}
-  }
-  function loadRememberedEmail(){
-    try{ return localStorage.getItem("inv_auth_email_v1") || ""; }catch(e){ return ""; }
-  }
-
-  btnLogin.addEventListener("click", async ()=>{
-    try{
-      rememberEmail();
-      setStatus(authStatus, "A entrar…", "warn");
-      const auth = firebase.auth();
-      await auth.signInWithEmailAndPassword((authEmail.value||"").trim(), authPass.value||"");
-      setStatus(authStatus, "✅ Login feito.", "ok");
-      // Agora ligar Firestore/coleções
-      await connectFirebase();
-    }catch(e){
-      setStatus(authStatus, "Erro login: " + (e.message||e), "bad");
-    }
-  });  btnLogout.addEventListener("click", async ()=>{
-    try{
-      const auth = firebase.auth();
-      await auth.signOut();
-      connected=false;
-      setStatus(authStatus, "Sessão terminada.", "ok");
-      setStatus(status, "⚠ Sessão terminada. Faça login para continuar.", "warn");
-      setStatus(adminStatus, "Desligado (sem autenticação).", "warn");
-      if(unsubProducts) { try{unsubProducts();}catch(e){} unsubProducts=null; }
-      lastProducts=[];
-      rebuildDashboard();
-      refreshProductStats(true);
-    }catch(e){
-      setStatus(authStatus, "Erro logout: " + (e.message||e), "bad");
-    }
-  });
-
-  btnConnect.addEventListener("click", async ()=> {
-    setStatus(adminStatus, "A ligar…", "warn");
-    await connectFirebase();
-    await loadSessions();
-  });
-  // ================== Admin actions ==================
-  btnInit.addEventListener("click", async ()=> {
-    if(!await connectFirebase()) return;
-    setStatus(adminStatus, "A inicializar produtos…", "warn");
-    try{
-      const batch = db.batch();
-      for(const p of PRODUCTS){
-        batch.set(colProducts.doc(p), {
-          name: p, prev: 0, neu: 0, diff: 0,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, {merge:true});
-      }
-      await batch.commit();
-      setStatus(adminStatus, `✅ Produtos inicializados/validados: ${PRODUCTS.length}`, "ok");
-    }catch(e){
-      setStatus(adminStatus, "Erro a inicializar: " + (e.message||e), "bad");
-    }
-  });
-
-  prevFile.addEventListener("change", async (e)=> {
-    const file=e.target.files?.[0];
-    if(!file) return;
-    if(!await connectFirebase()) return;
-
-    try{
-      setStatus(adminStatus, "A ler CSV…", "warn");
-      const rows=parseCSV(await file.text());
-      let start=0;
-      if(rows.length){
-        const first=rows[0].map(x=>(x||"").toLowerCase());
-        const looksHeader=first.some(x=>x.includes("produto")||x.includes("product")||x.includes("qty")||x.includes("quant")||x.includes("qtd"));
-        if(looksHeader) start=1;
-      }
-      const items=[];
-      for(let i=start;i<rows.length;i++){
-        const r=rows[i]; if(!r || r.length<2) continue;
-        const name=canonicalName(r[0]); const q=parseQty(r[1]);
-        if(name) items.push({name,q});
-      }
-
-      for(let i=0;i<items.length;i+=450){
-        const batch=db.batch();
-        items.slice(i,i+450).forEach(it=>{
-          batch.set(colProducts.doc(it.name), {
-            name: it.name,
-            prev: it.q,
-            lastWho: (firebase.auth().currentUser?.email || firebase.auth().currentUser?.uid || "IMPORT_PREV"),
-            lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, {merge:true});
-        });
-        await batch.commit();
-      }
-
-      setStatus(adminStatus, "A recalcular discrepâncias…", "warn");
-      for(const it of items){
-        const ref=colProducts.doc(it.name);
-        await db.runTransaction(async (tx)=>{
-          const snap=await tx.get(ref);
-          const d=snap.exists ? snap.data() : {};
-          const prev=Number(d.prev||0);
-          const neu=Number(d.neu||0);
-          tx.set(ref, {
-              prev, neu,
-              diff: neu - prev,
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, {merge:true});
-        });
-      }
-
-      setStatus(adminStatus, `✅ Contagem anterior importada: ${items.length} linhas.`, "ok");
-    }catch(err){
-      setStatus(adminStatus, "Erro no upload: " + (err.message||err), "bad");
-    }finally{
-      prevFile.value="";
-    }
-  });
-
-  
-  // ================== Importar contagem nova (CSV) ==================
-  let _newFileCache = null;
-  if(newFile){
-    newFile.addEventListener("change", (e)=>{
-      _newFileCache = e.target.files?.[0] || null;
-      if(_newFileCache){
-        setStatus(importStatus, `Ficheiro selecionado: ${_newFileCache.name}. Clique “Importar agora”.`, "warn");
-      }else{
-        setStatus(importStatus, "Nenhum ficheiro selecionado.", "warn");
-      }
-    });
-  }
-  if(btnClearNewFile){
-    btnClearNewFile.addEventListener("click", ()=>{
-      if(newFile) newFile.value="";
-      _newFileCache=null;
-      setStatus(importStatus, "Ficheiro limpo.", "ok");
-    });
-  }
-
-  async function importNewCountFromFile(file){
-    if(!file){ setStatus(importStatus, "Escolha um CSV primeiro.", "warn"); return; }
-    if(!await connectFirebase()){
-      setStatus(importStatus, "Precisa de estar ligado e autenticado.", "warn");
-      return;
-    }
-    try{
-      setStatus(importStatus, "A ler CSV…", "warn");
-      const rows=parseCSV(await file.text());
-      let start=0;
-      if(rows.length){
-        const first=rows[0].map(x=>(x||"").toLowerCase());
-        const looksHeader=first.some(x=>x.includes("produto")||x.includes("product")||x.includes("qty")||x.includes("quant")||x.includes("qtd"));
-        if(looksHeader) start=1;
-      }
-      const items=[];
-      for(let i=start;i<rows.length;i++){
-        const r=rows[i]; if(!r || r.length<2) continue;
-        const name=canonicalName(r[0]); const q=parseQty(r[1]);
-        if(name) items.push({name,q});
-      }
-      if(!items.length){
-        setStatus(importStatus, "CSV sem linhas válidas (precisa de Produto e Qty).", "warn");
-        return;
-      }
-
-      // Escrever nova contagem
-      const addMode = !!(chkImportAdd && chkImportAdd.checked);
-      const modeLabel = addMode ? "somar" : "substituir";
-      setStatus(importStatus, `A importar Nova (${modeLabel})… (${items.length} linhas)`, "warn");
-
-      const authUser = firebase.auth().currentUser;
-      const who = (authUser?.email || authUser?.uid || "IMPORT_NEW");
-
-      if(!addMode){
-        // SUBSTITUI: neu = qty do CSV
-        for(let i=0;i<items.length;i+=450){
-          const batch=db.batch();
-          items.slice(i,i+450).forEach(it=>{
-            batch.set(colProducts.doc(it.name), {
-              name: it.name,
-              neu: it.q,
-              uploadNew: it.q,
-              lastWho: who,
-              lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }, {merge:true});
-          });
-          await batch.commit();
-        }
-
-        // Recalcular diff para os itens importados
-        setStatus(importStatus, "A recalcular discrepâncias…", "warn");
-        for(const it of items){
-          const ref=colProducts.doc(it.name);
-          await db.runTransaction(async (tx)=>{
-            const snap=await tx.get(ref);
-            const d=snap.exists ? snap.data() : {};
-            const prev=Number(d.prev||0);
-            const neu=Number(d.neu||0);
-            tx.set(ref, {
-              prev, neu,
-              diff: neu - prev,
-              lastWho: who,
-              lastDelta: Number(it.q||0),
-              lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }, {merge:true});
-
-            // Registo no log (import substitui)
-            tx.set(colLogs.doc(), {
-              ts: firebase.firestore.FieldValue.serverTimestamp(),
-              who: who,
-              product: it.name,
-              delta: Number(it.q||0),
-              source: "IMPORT_NEW_REPLACE"
-            });
-          });
-        }
-      }else{
-        // SOMA: neu = neu_atual + qty do CSV
-        for(const it of items){
-          const ref=colProducts.doc(it.name);
-          await db.runTransaction(async (tx)=>{
-            const snap=await tx.get(ref);
-            const d=snap.exists ? snap.data() : {};
-            const prev=Number(d.prev||0);
-            const neu0=Number(d.neu||0);
-            const neu1=neu0 + Number(it.q||0);
-            tx.set(ref, {
-              name: d.name || it.name,
-              prev,
-              uploadNew: Number(d.uploadNew||0) + Number(it.q||0),
-              neu: neu1,
-              diff: neu1 - prev,
-              lastWho: who,
-              lastDelta: Number(it.q||0),
-              lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }, {merge:true});
-
-            // Registo no log (import soma)
-            tx.set(colLogs.doc(), {
-              ts: firebase.firestore.FieldValue.serverTimestamp(),
-              who: who,
-              product: it.name,
-              delta: Number(it.q||0),
-              source: "IMPORT_NEW_ADD"
-            });
-          });
-        }
-      }
-setStatus(importStatus, `✅ Importação concluída. Linhas: ${items.length}.`, "ok");
-      // Atualizar dashboard
-      if(!panelDash.classList.contains("hide")) rebuildDashboard();
-      if(selectedProduct) refreshProductStats();
-    }catch(e){
-      setStatus(importStatus, "Erro importação: " + (e.message||e), "bad");
-    }finally{
-      if(newFile) newFile.value="";
-      _newFileCache=null;
-    }
-  }
-
-  if(btnImportNew){
-    btnImportNew.addEventListener("click", async ()=>{
-      await importNewCountFromFile(_newFileCache);
-    });
-  }
-
-btnResetNew.addEventListener("click", async ()=> {
-    if(!await connectFirebase()) return;
-    setStatus(adminStatus, "A resetar nova contagem…", "warn");
-    try{
-      const snap = await colProducts.get();
-      const ids=[]; snap.forEach(d=>ids.push(d.id));
-
-      for(let i=0;i<ids.length;i+=450){
-        const batch=db.batch();
-        ids.slice(i,i+450).forEach(id=>{
-          batch.set(colProducts.doc(id), {
-            neu: 0,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, {merge:true});
-        });
-        await batch.commit();
-      }
-
-      for(const id of ids){
-        await db.runTransaction(async (tx)=>{
-          const ref=colProducts.doc(id);
-          const s=await tx.get(ref);
-          const d=s.exists ? s.data() : {};
-          const prev=Number(d.prev||0);
-          const neu=0;
-          tx.set(ref, {
-            neu, diff: neu - prev,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }, {merge:true});
-        });
-      }
-
-      setStatus(adminStatus, "✅ Nova contagem resetada.", "ok");
-    }catch(e){
-      setStatus(adminStatus, "Erro no reset: " + (e.message||e), "bad");
-    }
-  });
-
-  // ================== Entry send / queue ==================
-  async function sendItem(item){
-    const ref = colProducts.doc(item.product);
-    await db.runTransaction(async (tx)=>{
-      const snap = await tx.get(ref);
-      const d = snap.exists ? snap.data() : {};
-      const prev = Number(d.prev||0);
-      const neu0 = Number(d.neu||0);
-      const neu1 = neu0 + Number(item.delta||0);
-
-      tx.set(ref, {
-        name: d.name || item.product,
-        prev,
-        neu: neu1,
-        diff: neu1 - prev,
-        lastWho: item.who,
-        lastDelta: Number(item.delta||0),
-        lastLogAt: firebase.firestore.FieldValue.serverTimestamp(),
-updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      }, {merge:true});
-
-      tx.set(colLogs.doc(), {
-        ts: firebase.firestore.FieldValue.serverTimestamp(),
-        who: item.who,
-        product: item.product,
-        delta: Number(item.delta||0)
-      });
-    });
-  }
-
-  async function addDelta(delta){
-    delta = Number(delta||0);
-    if(!(delta>0)){ setStatus(status, "Quantidade inválida.", "warn"); return; }
-    const auth = firebase.auth();
-    const user = auth.currentUser;
-    const nm = user ? (user.email || user.uid) : "desconhecido";
-if(!selectedProduct){ setStatus(status, "Seleciona um produto.", "warn"); search.focus(); return; }
-    if(!await connectFirebase()) return;
-
-    const item = { ts: Date.now(), who: nm, product: selectedProduct, delta: delta };
-    try{
-      await sendItem(item);
-      setStatus(status, `✅ Registado: ${selectedProduct} +${delta} (por ${nm}).`, "ok");
-      qty.value="";
-      refreshProductStats(true);
-    }catch(err){
-      const q=loadQueue(); q.push(item); saveQueue(q);
-      setStatus(status, `Sem rede/erro: guardado para sincronizar (${q.length} pendentes).`, "warn");
-    }
-  }
-
-  document.querySelectorAll(".quick").forEach(b=> b.addEventListener("click", ()=>addDelta(Number(b.dataset.add))));
-  btnAddCustom.addEventListener("click", ()=> {
-    const v=Number(qty.value||0);
-    if(!(v>0)){ setStatus(status, "Introduz uma quantidade > 0.", "warn"); qty.focus(); return; }
-    addDelta(v);
-  });
-  qty.addEventListener("keydown",(e)=>{ if(e.key==="Enter"){ e.preventDefault(); btnAddCustom.click(); } });
-
-  async function syncQueue(){
-    const q=loadQueue();
-    if(!q.length){ setStatus(status, "Sem pendentes.", "ok"); return; }
-    if(!await connectFirebase()) return;
-
-    setStatus(status, `A sincronizar ${q.length} pendentes…`, "warn");
-    let ok=0; const left=[];
-    for(const item of q){
-      try{ await sendItem(item); ok++; }
-      catch(e){ left.push(item); }
-    }
-    saveQueue(left);
-    if(left.length===0) setStatus(status, `✅ Sincronização concluída. Enviados: ${ok}.`, "ok");
-    else setStatus(status, `⚠ Sincronização parcial. Enviados: ${ok}. Pendentes: ${left.length}.`, "warn");
+async function addDelta(delta){
+  delta=Number(delta||0);
+  if(!(delta>0)){ setMsg(entryStatus,"Quantidade inválida.","warn"); return; }
+  if(!selectedProduct){ setMsg(entryStatus,"Seleciona um produto primeiro.","warn"); search.focus(); return; }
+  if(!connected){ setMsg(entryStatus,"Não ligado. Vai ao Admin → Ligar.","warn"); return; }
+  const nm = _userEmail || "desconhecido";
+  const item={ts:Date.now(),who:nm,product:selectedProduct,delta};
+  try{
+    await sendItem(item);
+    setMsg(entryStatus,`✅ ${selectedProduct} +${delta} (${nm})`,"ok");
+    qty.value="";
     refreshProductStats(true);
+  }catch(err){
+    const q=loadQueue(); q.push(item); saveQueue(q);
+    setMsg(entryStatus,`⚠ Sem rede — guardado offline (${q.length} pendentes).`,"warn");
   }
-  btnSync.addEventListener("click", syncQueue);
+}
 
-  btnClearSel.addEventListener("click", ()=> {
-    selectedProduct=null; selected.value=""; search.value=""; qty.value="";
-    localStorage.removeItem(SELKEY);
-    newQty.textContent="—"; setStatus(status, "Seleção limpa.", "ok");
-    search.focus();
-  });
+document.querySelectorAll(".quick-btn").forEach(b=>b.addEventListener("click",()=>addDelta(Number(b.dataset.add))));
+btnAddCustom?.addEventListener("click",()=>{ const v=Number(qty.value||0); if(!(v>0)){setMsg(entryStatus,"Introduz uma quantidade > 0.","warn");qty.focus();return;} addDelta(v); });
+qty?.addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();btnAddCustom.click();} });
 
-  // ================== Stats display ==================
-  function refreshProductStats(){
-    if(!selectedProduct) return;
-    const found = lastProducts.find(x=>x.id===selectedProduct);
-    if(!found) return;
-    const neu=found.neu||0;
-    newQty.textContent=fmt(neu);
-  }
+async function syncQueue(){
+  const q=loadQueue(); if(!q.length){ setMsg(entryStatus,"Sem pendentes para sincronizar.","ok"); return; }
+  if(!connected){ setMsg(entryStatus,"Sem ligação para sincronizar.","warn"); return; }
+  setMsg(entryStatus,`A sincronizar ${q.length} itens…`,"warn");
+  const done=[], failed=[];
+  for(const item of q){ try{ await sendItem(item); done.push(item); }catch(e){ failed.push(item); } }
+  saveQueue(failed);
+  setMsg(entryStatus,`✅ Sincronizados: ${done.length}. Falhas: ${failed.length}.`, failed.length?"warn":"ok");
+  refreshProductStats(true);
+}
+btnSync?.addEventListener("click",syncQueue);
 
-  // ================== Dashboard ==================
-  function rebuildDashboard(){
-    if(!connected){
-      setStatus(dashStatus, "Ligue o Firestore no Admin.", "warn");
-      discCount.textContent="—";
-      discBody.innerHTML=`<tr><td colspan="4" style="color:var(--muted);padding:12px">Sem dados. Ligue no Admin.</td></tr>`;
-      return;
-    }
-    const filt=normalize(dashFilter.value).toLowerCase();
-    const rows = lastProducts.map(x=> {
-      const diff = (x.neu||0) - (x.prev||0);
-      return { product:x.name, prev:x.prev||0, neu:x.neu||0, diff };
-    }).filter(r=> {
-      if(filt && !r.product.toLowerCase().includes(filt)) return false;
-      return r.diff !== 0;
-    });
-    rows.sort((a,b)=>Math.abs(b.diff)-Math.abs(a.diff));
-    discCount.textContent=String(rows.length);
+// ===== DASHBOARD =====
+function rebuildDashboard(){
+  const f=(dashFilter.value||"").toLowerCase();
+  const rows=lastProducts.filter(x=>!f||(x.id||x.name||"").toLowerCase().includes(f));
+  const hasDiff=rows.filter(x=>((x.neu||0)-(x.prev||0))!==0).length;
+  discCount.textContent=String(hasDiff);
+  discCount.parentElement.classList.toggle('has-diff', hasDiff>0);
 
-    if(!rows.length){
-      discBody.innerHTML=`<tr><td colspan="4" style="color:var(--muted);padding:12px">Sem discrepâncias.</td></tr>`;
-      setStatus(dashStatus, "Atualizado (sem discrepâncias).", "ok");
-      return;
-    }
-    discBody.innerHTML = rows.slice(0,140).map(r=> {
-      const cls = r.diff>0 ? "diffpos" : "diffneg";
-      const diffText = r.diff===0 ? "0" : (r.diff>0 ? ("+"+fmt(r.diff)) : String(r.diff));
-      return `<tr>
-        <td title="${escapeHtml(r.product)}">${escapeHtml(r.product)}</td>
-        <td class="mono">${fmt(r.prev)}</td>
-        <td class="mono">${fmt(r.neu)}</td>
-        <td class="mono ${cls}">${diffText}</td>
-      </tr>`;
-    }).join("") + (rows.length>140 ? `<tr><td colspan="4" style="color:var(--muted);padding:12px">(a mostrar 140 de ${rows.length})</td></tr>` : "");
-    setStatus(dashStatus, "Atualizado.", "ok");
-  }
-  dashFilter.addEventListener("input", ()=>rebuildDashboard());
+  if(!rows.length){ discBody.innerHTML=`<tr><td colspan="4" style="padding:20px;color:var(--muted);text-align:center">Sem dados. Ligue no Admin.</td></tr>`; return; }
 
-  
-  // ================== Logs ==================
-  let logsCursor = null;          // último DocumentSnapshot (para paginação)
-  let logsExhausted = false;
+  const sorted=[...rows].sort((a,b)=>{ const da=Math.abs((a.neu||0)-(a.prev||0)), db=Math.abs((b.neu||0)-(b.prev||0)); return db-da; });
+  discBody.innerHTML=sorted.map(x=>{
+    const diff=(x.neu||0)-(x.prev||0);
+    const cls=diff>0?'diff-pos':diff<0?'diff-neg':'diff-zero';
+    const dsign=diff>0?'+':'';
+    return `<tr>
+      <td class="product-name">${escHtml(x.id||x.name)}</td>
+      <td class="mono" style="text-align:right">${fmt(x.prev)}</td>
+      <td class="mono" style="text-align:right">${fmt(x.neu)}</td>
+      <td class="mono ${cls}" style="text-align:right">${dsign}${fmt(diff)}</td>
+    </tr>`;
+  }).join("");
 
-  function fmtWhen(d){
-    if(!d) return "";
-    try{
-      const pad=(n)=>String(n).padStart(2,"0");
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }catch(e){ return ""; }
-  }
+  setMsg(dashStatus,`${rows.length} produtos. ${hasDiff} com discrepância.`,"ok");
+}
 
-  async function fetchLogsPage({append=false}={}){
-    if(!connected){
-      setStatus(logsStatus, "Desligado.", "warn");
-      return;
-    }
-    const lim = Math.max(50, Number(logsLimit.value||300) || 300);
-    if(append && logsExhausted){
-      setStatus(logsStatus, "Já não há mais registos para carregar.", "ok");
-      return;
-    }
+dashFilter?.addEventListener("input",()=>rebuildDashboard());
 
-    let q = colLogs.orderBy("ts","desc").limit(lim);
-    if(append && logsCursor) q = q.startAfter(logsCursor);
+btnExportDiff?.addEventListener("click",()=>{
+  const rows=lastProducts.map(x=>({product:x.id||x.name,prev:x.prev||0,neu:x.neu||0,diff:(x.neu||0)-(x.prev||0),lastWho:x.lastWho||""})).filter(r=>r.diff!==0);
+  const header=csvRow(["Produto","Anterior","Nova","Dif","UltimoPor"]);
+  const body=rows.map(r=>csvRow([r.product,r.prev,r.neu,r.diff,r.lastWho])).join("");
+  downloadText(`discrepancias_${new Date().toISOString().slice(0,10)}.csv`,header+body);
+  setMsg(dashStatus,"Exportado (CSV).","ok");
+});
 
-    setStatus(logsStatus, append ? "A carregar mais…" : "A carregar…", "warn");
-    const snap = await q.get();
-    if(snap.empty){
-      logsExhausted = true;
-      setStatus(logsStatus, "Sem mais registos.", "ok");
-      return;
-    }
+btnExportNew?.addEventListener("click",()=>{
+  const map=new Map(lastProducts.map(x=>[x.id,x]));
+  const header=csvRow(["Produto","TotalAtual","TotalUploadNova","TotalOperador","UltimoPor"]);
+  const lines=PRODUCTS.map(p=>{ const d=map.get(p); const neu=d?(d.neu||0):0; const uploadNew=d?(d.uploadNew||0):0; const op=Math.max(0,neu-uploadNew); const who=d?(d.lastWho||""):""; return csvRow([p,neu,uploadNew,op,who]); });
+  downloadText(`contagem_nova_${new Date().toISOString().slice(0,10)}.csv`,header+lines.join(""));
+  setMsg(dashStatus,"Exportado (CSV).","ok");
+});
 
-    const page=[];
-    let lastDoc=null;
-    snap.forEach(doc=>{
-      const d=doc.data()||{};
-      let t=null; try{ t = d.ts && d.ts.toDate ? d.ts.toDate() : null; }catch(e){}
-      page.push({ id: doc.id, when: t, who: d.who||"", product: d.product||"", delta: Number(d.delta||0), source: d.source||"" });
-      lastDoc = doc;
-    });
-    logsCursor = lastDoc;
-    if(page.length < lim) logsExhausted = true;
+// ===== LOGS =====
+function rebuildLogs(){
+  const f=(logsFilter.value||"").toLowerCase();
+  const rows=lastLogs.filter(l=>!f||(l.product||"").toLowerCase().includes(f)||(l.who||"").toLowerCase().includes(f));
+  if(!rows.length){ logsBody.innerHTML=`<tr><td colspan="4" style="padding:20px;color:var(--muted);text-align:center">Sem registos.</td></tr>`; return; }
+  logsBody.innerHTML=rows.map(l=>`<tr>
+    <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">${fmtWhen(l.when)}</td>
+    <td style="font-size:12px;color:var(--muted)">${escHtml((l.who||"").split("@")[0])}</td>
+    <td class="product-name">${escHtml(l.product)}</td>
+    <td class="mono" style="text-align:right;color:var(--green)">+${fmt(l.delta)}</td>
+  </tr>`).join("");
+  setMsg(logsStatus,`${rows.length} registos visíveis.`,"ok");
+}
 
-    if(!append){
-      lastLogs = page;
-    }else{
-      const existing = new Set((lastLogs||[]).map(x=>x.id));
-      for(const r of page){ if(!existing.has(r.id)) lastLogs.push(r); }
-    }
+logsFilter?.addEventListener("input",()=>rebuildLogs());
+
+async function fetchLogsPage({append=false}={}){
+  if(!connected){ setMsg(logsStatus,"Faça login primeiro.","warn"); return; }
+  if(logsExhausted&&append){ setMsg(logsStatus,"Todos os registos já carregados.","ok"); return; }
+  setMsg(logsStatus,"A carregar…","warn");
+  try{
+    const lim=Number(logsLimit.value||300)||300;
+    const params = {pageSize:lim, orderBy:"ts desc"};
+    if(append&&logsCursor) params.pageToken=logsCursor;
+    else lastLogs=[];
+    const {docs,nextPageToken}=await fsList(logsCol(), params);
+    const arr=docs.map(d=>({when:d.ts instanceof Date?d.ts:(d.ts?new Date(d.ts):null),who:d.who||"",product:d.product||"",delta:Number(d.delta||0)}));
+    if(append) lastLogs=[...lastLogs,...arr]; else lastLogs=arr;
+    logsCursor=nextPageToken||null;
+    if(!nextPageToken) logsExhausted=true;
     rebuildLogs();
-  }
+  }catch(e){ setMsg(logsStatus,"Erro: "+(e.message||e),"bad"); }
+}
 
-  function rebuildLogs(){
-    if(!connected){
-      logsBody.innerHTML=`<tr><td colspan="4" style="color:var(--muted);padding:12px">Ligue no Admin e faça login.</td></tr>`;
-      setStatus(logsStatus, "Desligado.", "warn");
+btnRefreshLogs?.addEventListener("click",()=>{ logsCursor=null; logsExhausted=false; fetchLogsPage({append:false}); });
+btnLoadMoreLogs?.addEventListener("click",()=>fetchLogsPage({append:true}));
+
+async function exportAllLogsCSV(){
+  if(!connected){ setMsg(logsStatus,"Faça login primeiro.","warn"); return; }
+  setMsg(logsStatus,"A exportar todos os registos…","warn");
+  const header=csvRow(["Data","Utilizador","Produto","Delta","Source"]);
+  const parts=[]; let pt=null, fetched=0;
+  do {
+    const {docs,nextPageToken}=await fsList(logsCol(), {pageSize:500, orderBy:"ts desc", pageToken:pt||""});
+    for(const d of docs){ const when=d.ts instanceof Date?d.ts:(d.ts?new Date(d.ts):null); parts.push(csvRow([fmtWhen(when),d.who||"",d.product||"",Number(d.delta||0),d.source||""])); }
+    fetched+=docs.length; pt=nextPageToken||null;
+    if(fetched>50000) break;
+  } while(pt);
+  downloadText(`registos_${new Date().toISOString().slice(0,10)}.csv`,header+parts.join(""));
+  setMsg(logsStatus,`Exportado. Linhas: ${fetched}.`,"ok");
+}
+btnExportLogs?.addEventListener("click",exportAllLogsCSV);
+
+// ===== RULES =====
+const RULES=`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    function signedIn() { return request.auth != null; }\n    match /{document=**} { allow read, write: if false; }\n    match /{ns}_sessions/{sessionId} {\n      allow read: if signedIn();\n      allow create, update: if signedIn();\n      allow delete: if false;\n      match /products/{productId} {\n        allow read: if signedIn();\n        allow create, update: if signedIn();\n        allow delete: if false;\n      }\n      match /logs/{logId} {\n        allow read: if signedIn();\n        allow create: if signedIn();\n        allow update, delete: if false;\n      }\n    }\n  }\n}`;
+if(rulesBox) rulesBox.value=RULES;
+btnCopyRules?.addEventListener("click",async()=>{ try{ await navigator.clipboard.writeText(rulesBox.value); setMsg(adminStatus,"Regras copiadas!","ok"); }catch(e){ rulesBox.select(); document.execCommand('copy'); setMsg(adminStatus,"Regras selecionadas (Ctrl+C).","ok"); } });
+
+// ===== AUTH GATE =====
+function showGate(msg="",kind="warn"){ document.body.classList.add("locked"); loginGate.style.display="flex"; if(msg) setMsg(gateStatus,msg,kind); }
+function hideGate(){ loginGate.style.display="none"; document.body.classList.remove("locked"); }
+
+async function gateSignIn(){
+  const email=(gateEmail.value||"").trim(), pass=gatePass.value||"";
+  if(!email||!pass){ setMsg(gateStatus,"Preencha email e password.","warn"); return; }
+  setMsg(gateStatus,"A entrar…","warn");
+  try{
+    try{ localStorage.setItem("inv_auth_email_v1",email); }catch(e){}
+    await signIn(email, pass.trim());
+    setMsg(gateStatus,"✅ Autenticado!","ok");
+    hideGate();
+    await connectFirebase();
+    await loadSessions();
+  }catch(e){ setMsg(gateStatus,"Erro: "+(e.message||e),"bad"); }
+}
+
+gateLogin?.addEventListener("click",()=>gateSignIn());
+gatePass?.addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();gateSignIn();} });
+
+btnLogout?.addEventListener("click",async()=>{
+  if(_pollInterval){ clearInterval(_pollInterval); _pollInterval=null; }
+  await signOut();
+  connected=false; lastProducts=[]; lastLogs=[];
+  activeSessionLabel.textContent="—"; userChip.textContent="—";
+  showGate("Sessão terminada.","warn");
+});
+
+// ===== INIT =====
+(async function init(){
+  currentSessionId=loadSessionId();
+  try{ gateEmail.value=localStorage.getItem("inv_auth_email_v1")||""; }catch(e){}
+  const cfg=loadCfg();
+  namespace.value=cfg.namespace||"inv_2026_02";
+  saveQueue(loadQueue());
+  const lastSel=localStorage.getItem(SELKEY)||"";
+  if(lastSel) pickProduct(lastSel);
+  setTab("entry");
+
+  // Try to restore session with saved refresh token
+  try{
+    const rt = localStorage.getItem("inv_rt")||"";
+    const em = localStorage.getItem("inv_email")||"";
+    if(rt){
+      _refreshToken = rt; _userEmail = em;
+      await refreshIdToken();
+      hideGate();
+      setMsg(gateStatus,"✅ Sessão restaurada.","ok");
+      await connectFirebase();
+      await loadSessions();
       return;
     }
-    const filt=normalize(logsFilter.value).toLowerCase();
-    const rows = (lastLogs||[]).filter(r=>{
-      if(!filt) return true;
-      return (r.product||"").toLowerCase().includes(filt) ||
-             (r.who||"").toLowerCase().includes(filt) ||
-             (r.source||"").toLowerCase().includes(filt);
-    });
+  }catch(e){ _refreshToken=null; }
 
-    if(!rows.length){
-      logsBody.innerHTML=`<tr><td colspan="4" style="color:var(--muted);padding:12px">Sem registos.</td></tr>`;
-      setStatus(logsStatus, "Atualizado.", "ok");
-      return;
-    }
-
-    // Mostra todos os registos carregados, mesmo repetidos do mesmo produto
-    logsBody.innerHTML = rows.map(r=>{
-      const d = fmtWhen(r.when);
-      const who = escapeHtml(r.who||"");
-      const prod = escapeHtml(r.product||"");
-      const delta = r.delta;
-      return `<tr>
-        <td class="mono">${escapeHtml(d)}</td>
-        <td title="${who}">${who}</td>
-        <td title="${prod}">${prod}</td>
-        <td class="mono">${delta}</td>
-      </tr>`;
-    }).join("");
-    setStatus(logsStatus, `Atualizado. Visíveis: ${rows.length}${logsExhausted ? " (todos carregados)" : ""}`, "ok");
-  }
-
-  if(logsFilter) logsFilter.addEventListener("input", ()=>rebuildLogs());
-  if(btnRefreshLogs) btnRefreshLogs.addEventListener("click", async ()=>{
-    logsCursor=null; logsExhausted=false;
-    if(!await connectFirebase()) return;
-    await fetchLogsPage({append:false});
-  });
-  if(btnLoadMoreLogs) btnLoadMoreLogs.addEventListener("click", async ()=>{
-    if(!await connectFirebase()) return;
-    await fetchLogsPage({append:true});
-  });
-
-  // Exportar TODOS os registos (paginado) em TSV
-  async function exportAllLogsCSV(){
-    if(!await connectFirebase()){
-      setStatus(logsStatus, "Precisa de estar ligado e autenticado.", "warn");
-      return;
-    }
-    setStatus(logsStatus, "A exportar todos os registos…", "warn");
-    const header = csvRow(["Data","Utilizador","Produto","Delta","Source","DocId"]);
-
-    const parts=[];
-    let last=null;
-    const pageSize=1000;
-    let fetched=0;
-
-    while(true){
-      let q=colLogs.orderBy("ts","desc").limit(pageSize);
-      if(last) q=q.startAfter(last);
-      const snap=await q.get();
-      if(snap.empty) break;
-
-      const lines=[];
-      let lastDoc=null;
-      snap.forEach(doc=>{
-        const d=doc.data()||{};
-        let t=null; try{ t=d.ts && d.ts.toDate ? d.ts.toDate() : null; }catch(e){}
-        lines.push(csvRow([fmtWhen(t), d.who||"", d.product||"", Number(d.delta||0), d.source||"", doc.id]));
-        lastDoc=doc;
-      });
-      parts.push(lines.join(""));
-      fetched += snap.size;
-      last = lastDoc;
-      if(snap.size < pageSize) break;
-      if(fetched > 200000) break; // safety cap
-    }
-
-    const stamp=new Date().toISOString().slice(0,10);
-    downloadText(`registos_${stamp}.csv`, header + parts.join("") );
-    setStatus(logsStatus, `Exportado (CSV). Linhas: ${fetched}.`, "ok");
-  }
-
-  if(btnExportLogs) btnExportLogs.addEventListener("click", exportAllLogsCSV);
-// ================== Exports// ================== Exports ==================
-  btnExportDiff.addEventListener("click", ()=> {
-    const rows = lastProducts.map(x=> {
-      const diff=(x.neu||0)-(x.prev||0);
-      return { product:x.name, prev:x.prev||0, neu:x.neu||0, diff, lastWho: (x.lastWho||"") };
-    }).filter(r=>r.diff!==0);
-
-    const header = csvRow(["Produto","Anterior","Nova","Dif","UltimoPor"]); 
-    const body = rows.map(r=> csvRow([r.product, r.prev, r.neu, r.diff, r.lastWho])).join("");
-    const stamp=new Date().toISOString().slice(0,10);
-    downloadText(`discrepancias_${stamp}.csv`, header+body);
-    setStatus(dashStatus, "Exportado (CSV).", "ok");
-  });
-  btnExportNew.addEventListener("click", ()=> {
-    const map = new Map(lastProducts.map(x=>[x.id,x]));
-    const header = csvRow(["Produto","TotalAtual","TotalUploadNova","TotalOperador","UltimoPor"]); 
-    const lines=[];
-    for(const p of PRODUCTS){
-      const d=map.get(p);
-      const totalAtual = d ? (d.neu||0) : 0;
-      const totalUpload = d ? (d.uploadNew||0) : 0;
-      const totalOperador = Math.max(0, totalAtual - totalUpload);
-      const who = d ? (d.lastWho||"") : "";
-      lines.push(csvRow([p, totalAtual, totalUpload, totalOperador, who]));
-    }
-    const stamp=new Date().toISOString().slice(0,10);
-    downloadText(`contagem_nova_${stamp}.csv`, header + lines.join("") );
-    setStatus(dashStatus, "Exportado (CSV).", "ok");
-  });
-  // ================== Gate: login obrigatório antes de usar ==================
-  function showGate(msg="", kind="warn"){
-    document.body.classList.add("locked");
-    loginGate.style.display="flex";
-    if(msg) setStatus(gateStatus, msg, kind);
-  }
-  function hideGate(){
-    loginGate.style.display="none";
-    document.body.classList.remove("locked");
-  }
-
-  // init firebase core (idempotente)
-  function initFirebaseCore(){
-    try{ firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG); }catch(e){}
-  }
-
-  async function gateSignIn(){
-    try{
-      setStatus(gateStatus, "A entrar…", "warn");
-      const auth = firebase.auth();
-      const email = (gateEmail.value||"").trim();
-      const pass  = gatePass.value||"";
-      const pass2 = pass.replace(/\s+$/,""); // evita espaços no fim ao colar
-      if(!email || !pass){ setStatus(gateStatus, "Preencha email e password.", "warn"); return; }
-
-      // lembrar email
-      try{ localStorage.setItem("inv_auth_email_v1", email); }catch(e){}
-
-      // persistência local (best-effort)
-      try{ await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(e){}
-
-      await auth.signInWithEmailAndPassword(email, pass2);
-      setStatus(gateStatus, "✅ Autenticado. A iniciar…", "ok");
-    }catch(e){
-      setStatus(gateStatus, "Erro login: " + (e.code ? (e.code + " — ") : "") + (e.message||e), "bad");
-      try{ console.error("Login error:", e); }catch(_){}
-    }
-  }
-
-  gateLogin.addEventListener("click", ()=>gateSignIn());
-  gatePass.addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); gateSignIn(); }});
-// Sempre que o estado de autenticação muda, desbloqueia/bloqueia
-  function setupAuthListener(){
-    const auth = firebase.auth();
-    auth.onAuthStateChanged(async (user)=>{
-      if(user){
-        // mostrar utilizador autenticado
-        if(whoDisplay) whoDisplay.value = (user.email || user.uid);
-        hideGate();
-        // ligar ao firestore e arrancar subscrições
-        await connectFirebase();
-      }else{
-        if(whoDisplay) whoDisplay.value = "—";
-        // reset app state quando sai
-        connected=false;
-        if(unsubProducts){ try{unsubProducts();}catch(e){} unsubProducts=null; }
-        lastProducts=[];
-        rebuildDashboard();
-        refreshProductStats(true);
-        setActiveSessionLabel("—");
-        showGate("Faça login para iniciar.", "warn");
-      }
-    });
-  }
-
-// ================== Init ==================
-  (function init(){
-    // init firebase e listener de autenticação (gate)
-    initFirebaseCore();
-    currentSessionId = loadSessionId();
-    setupAuthListener();
-    // prefill email
-    try{ gateEmail.value = localStorage.getItem("inv_auth_email_v1") || ""; }catch(e){}
-// email lembrado (para facilitar login)
-    if(authEmail) authEmail.value = loadRememberedEmail();
-
-    const cfg=loadCfg();
-    namespaceInput.value = cfg.namespace || "inv_2026_02";
-
-    saveQueue(loadQueue());
-
-    const lastSel=localStorage.getItem(SELKEY) || "";
-    if(lastSel){ selectedProduct=lastSel; selected.value=lastSel; }
-
-    // Auto tab
-    if(window.innerWidth < 900) setTab("entry"); else setTab("dash");
-  })();
+  showGate("Faça login para iniciar.","warn");
+})();
 </script>
 </body>
 </html>
