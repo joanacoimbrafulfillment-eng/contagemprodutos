@@ -497,7 +497,17 @@ textarea.code-area {
         <div class="selected-name hide" id="selectedName"></div>
         <div class="selected-stats hide" id="selectedStats">
           <div class="neu" id="statNeu">—</div>
-          <div class="label">contado</div>
+          <div class="label">total contado</div>
+          <div style="margin-top:6px;display:flex;gap:8px;justify-content:flex-end">
+            <div style="text-align:right">
+              <div style="font-family:var(--mono);font-size:13px;color:var(--blue)" id="statPaletes">—</div>
+              <div class="label">🔗 paletes</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-family:var(--mono);font-size:13px;color:var(--green)" id="statOp">—</div>
+              <div class="label">👷 operadores</div>
+            </div>
+          </div>
         </div>
         <button class="btn-clear-sel hide" id="btnClearSel">✕</button>
       </div>
@@ -526,7 +536,9 @@ textarea.code-area {
       <div class="entry-status" id="entryStatus">Aguarda ligação ao Firebase…</div>
       <div class="info-chips">
         <div class="chip">Pendentes offline: <b id="pendingCount">0</b></div>
-        <div class="chip">Contado (produto): <b id="newQty">—</b></div>
+        <div class="chip">Total: <b id="newQty">—</b></div>
+        <div class="chip">🔗 Paletes WH: <b id="chipPaletes">—</b></div>
+        <div class="chip">👷 Operadores: <b id="chipOp">—</b></div>
       </div>
     </div>
 
@@ -547,10 +559,12 @@ textarea.code-area {
         <table>
           <thead>
             <tr>
-              <th style="width:50%">Produto</th>
-              <th class="mono">Anterior</th>
-              <th class="mono">Nova</th>
-              <th class="mono">Dif</th>
+              <th style="width:30%">Produto</th>
+              <th class="mono" style="text-align:right;width:12%">Anterior</th>
+              <th class="mono" style="text-align:right;width:13%;color:var(--blue)">🔗 WH</th>
+              <th class="mono" style="text-align:right;width:13%;color:var(--green)">👷 Op.</th>
+              <th class="mono" style="text-align:right;width:12%">Total</th>
+              <th class="mono" style="text-align:right;width:10%">Dif</th>
             </tr>
           </thead>
           <tbody id="discBody">
@@ -650,10 +664,13 @@ textarea.code-area {
 
       <hr class="section-sep"/>
       <div class="section-title">Produtos e contagens</div>
-      <div class="btn-grid" style="margin-bottom:10px">
+      <div class="btn-grid" style="margin-bottom:10px;grid-template-columns:1fr 1fr 1fr">
         <button class="btn-action primary" id="btnInit">Inicializar produtos</button>
         <button class="btn-action danger" id="btnResetNew">Reset nova contagem</button>
-        <div></div>
+        <button class="btn-action primary" id="btnImportPos" style="background:var(--blue-dim);border-color:var(--blue-border);color:var(--blue)">🔗 Importar do Posições WH</button>
+      </div>
+      <div id="hintPos" class="hint-box" style="margin-bottom:10px">
+        <b>Importar do Posições WH</b> — vai buscar o stock total em <b>paletes COMPLETAS</b> de cada produto e usa esse valor como ponto de partida. Os colaboradores somam por cima.
       </div>
       <div class="form-field" style="margin-bottom:10px">
         <label>Upload contagem anterior (CSV: Produto, Qty)</label>
@@ -686,7 +703,7 @@ const AUTH_URL  = `https://identitytoolkit.googleapis.com/v1/accounts:signInWith
 const FS_BASE   = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
 
 // ===== Auth token management =====
-let _idToken = null, _tokenExp = 0, _refreshToken = null, _userEmail = "";
+let _idToken = null, _tokenExp = 0, _refreshToken = null, _userEmail = "", _lastPass = "";
 
 async function signIn(email, pass) {
   const r = await fetch(AUTH_URL, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password:pass,returnSecureToken:true})});
@@ -694,6 +711,7 @@ async function signIn(email, pass) {
   if (!r.ok) throw new Error(d?.error?.message || "Login falhou");
   _idToken = d.idToken; _tokenExp = Date.now() + (Number(d.expiresIn||3600)-60)*1000;
   _refreshToken = d.refreshToken; _userEmail = d.email||email;
+  _lastPass = pass; // guardado em memória para login silencioso no posicoeswh
   try{localStorage.setItem("inv_rt",""+_refreshToken); localStorage.setItem("inv_email",""+_userEmail);}catch(e){}
   return d;
 }
@@ -847,13 +865,14 @@ const search=$('search'), sugg=$('sugg');
 const selectedCard=$('selectedCard'), selectedEmpty=$('selectedEmpty'), selectedName=$('selectedName'), selectedStats=$('selectedStats'), statNeu=$('statNeu'), btnClearSel=$('btnClearSel');
 const qty=$('qty'), btnAddCustom=$('btnAddCustom'), btnSync=$('btnSync');
 const entryStatus=$('entryStatus'), pendingCount=$('pendingCount'), newQty=$('newQty');
+const statPaletes=$('statPaletes'), statOp=$('statOp'), chipPaletes=$('chipPaletes'), chipOp=$('chipOp');
 const dashFilter=$('dashFilter'), discBody=$('discBody'), discCount=$('discCount'), dashStatus=$('dashStatus');
 const btnExportDiff=$('btnExportDiff'), btnExportNew=$('btnExportNew');
 const logsFilter=$('logsFilter'), logsLimit=$('logsLimit'), logsBody=$('logsBody'), logsStatus=$('logsStatus');
 const btnExportLogs=$('btnExportLogs'), btnRefreshLogs=$('btnRefreshLogs'), btnLoadMoreLogs=$('btnLoadMoreLogs');
 const namespace=$('namespace'), btnConnect=$('btnConnect');
 const sessionSelect=$('sessionSelect'), btnOpenSession=$('btnOpenSession'), btnNewSession=$('btnNewSession'), btnDeleteSession=$('btnDeleteSession'), sessionStatus=$('sessionStatus');
-const btnInit=$('btnInit'), btnResetNew=$('btnResetNew'), prevFile=$('prevFile'), adminStatus=$('adminStatus');
+const btnInit=$('btnInit'), btnResetNew=$('btnResetNew'), btnImportPos=$('btnImportPos'), prevFile=$('prevFile'), adminStatus=$('adminStatus');
 const newFile=$('newFile'), btnImportNew=$('btnImportNew'), btnClearNewFile=$('btnClearNewFile'), importStatus=$('importStatus'), chkImportAdd=$('chkImportAdd');
 const rulesBox=$('rulesBox'), btnCopyRules=$('btnCopyRules');
 
@@ -957,7 +976,7 @@ btnClearSel.addEventListener("click", ()=>{
   selectedStats.classList.add('hide');
   btnClearSel.classList.add('hide');
   selectedCard.classList.remove('has-product');
-  statNeu.textContent="—"; newQty.textContent="—";
+  statNeu.textContent="—"; newQty.textContent="—"; statPaletes.textContent="—"; statOp.textContent="—"; chipPaletes.textContent="—"; chipOp.textContent="—";
   localStorage.removeItem(SELKEY);
   search.focus();
 });
@@ -989,12 +1008,37 @@ function refreshProductStats(silent=false){
   if(!selectedProduct||!connected) return;
   const p=lastProducts.find(x=>x.id===selectedProduct||x.name===selectedProduct);
   if(p){
-    statNeu.textContent=fmt(p.neu);
-    newQty.textContent=fmt(p.neu);
+    const neu = p.neu||0;
+    const pal = p.uploadNew||0;
+    const op  = Math.max(0, neu - pal);
+    statNeu.textContent    = fmt(neu);
+    newQty.textContent     = fmt(neu);
+    statPaletes.textContent = fmt(pal);
+    statOp.textContent      = fmt(op);
+    chipPaletes.textContent = fmt(pal);
+    chipOp.textContent      = fmt(op);
   }
+  if(!silent && lastProducts.length===0) refreshAllProducts();
 }
 
 
+
+// ===== SEND ITEM =====
+async function sendItem(item){
+  if(!currentSessionId) throw new Error("Sem contagem ativa");
+  const name=canonicalName(item.product);
+  // Registar log
+  await fsAdd(logsCol(),{ts:new Date(item.ts||Date.now()),who:item.who||_userEmail||"",product:name,delta:Number(item.delta),source:"app"});
+  // Atualizar produto (leitura + escrita)
+  await fsTransaction(`${productsCol()}/${encDocId(name)}`, async(doc)=>{
+    const base=Number(doc.neu||0);
+    return {...doc, name, neu:base+Number(item.delta), lastWho:item.who||_userEmail||"", lastTs:new Date()};
+  });
+  // Atualizar cache local
+  const idx=lastProducts.findIndex(x=>x.id===name||x.name===name);
+  if(idx>=0){ lastProducts[idx].neu=(lastProducts[idx].neu||0)+Number(item.delta); lastProducts[idx].lastWho=item.who||_userEmail||""; }
+  else { lastProducts.push({id:name,name,neu:Number(item.delta),prev:0,uploadNew:0,lastWho:item.who||_userEmail||""}); }
+}
 
 async function addDelta(delta){
   delta=Number(delta||0);
@@ -1038,17 +1082,23 @@ function rebuildDashboard(){
   discCount.textContent=String(hasDiff);
   discCount.parentElement.classList.toggle('has-diff', hasDiff>0);
 
-  if(!rows.length){ discBody.innerHTML=`<tr><td colspan="4" style="padding:20px;color:var(--muted);text-align:center">Sem dados. Ligue no Admin.</td></tr>`; return; }
+  if(!rows.length){ discBody.innerHTML=`<tr><td colspan="6" style="padding:20px;color:var(--muted);text-align:center">Sem dados. Ligue no Admin.</td></tr>`; return; }
 
   const sorted=[...rows].sort((a,b)=>{ const da=Math.abs((a.neu||0)-(a.prev||0)), db=Math.abs((b.neu||0)-(b.prev||0)); return db-da; });
   discBody.innerHTML=sorted.map(x=>{
-    const diff=(x.neu||0)-(x.prev||0);
-    const cls=diff>0?'diff-pos':diff<0?'diff-neg':'diff-zero';
-    const dsign=diff>0?'+':'';
+    const neu  = x.neu||0;
+    const prev = x.prev||0;
+    const pal  = x.uploadNew||0;
+    const op   = Math.max(0, neu - pal);
+    const diff = neu - prev;
+    const cls  = diff>0?'diff-pos':diff<0?'diff-neg':'diff-zero';
+    const dsign= diff>0?'+':'';
     return `<tr>
       <td class="product-name">${escHtml(x.id||x.name)}</td>
-      <td class="mono" style="text-align:right">${fmt(x.prev)}</td>
-      <td class="mono" style="text-align:right">${fmt(x.neu)}</td>
+      <td class="mono" style="text-align:right">${fmt(prev)}</td>
+      <td class="mono" style="text-align:right;color:var(--blue)">${fmt(pal)}</td>
+      <td class="mono" style="text-align:right;color:var(--green)">${fmt(op)}</td>
+      <td class="mono" style="text-align:right;font-weight:700">${fmt(neu)}</td>
       <td class="mono ${cls}" style="text-align:right">${dsign}${fmt(diff)}</td>
     </tr>`;
   }).join("");
@@ -1126,6 +1176,294 @@ async function exportAllLogsCSV(){
   setMsg(logsStatus,`Exportado. Linhas: ${fetched}.`,"ok");
 }
 btnExportLogs?.addEventListener("click",exportAllLogsCSV);
+
+// ===== CONNECT =====
+async function connectFirebase(){
+  connected=true;
+  userChip.textContent=_userEmail||"—";
+  const cfg=loadCfg(); cfg.namespace=namespace.value; saveCfg(cfg);
+  // Mostrar/esconder botão de importar do Posições WH conforme o papel
+  const isAdmin = (_userEmail||"").endsWith("@admin.com");
+  const btnPos = $('btnImportPos');
+  if(btnPos){ btnPos.style.display = isAdmin ? "" : "none"; }
+  const hintPos = $('hintPos');
+  if(hintPos){ hintPos.style.display = isAdmin ? "" : "none"; }
+}
+
+btnConnect?.addEventListener("click", async()=>{
+  const ns=(namespace.value||"").trim();
+  if(!ns){ setMsg(adminStatus,"Define um namespace primeiro.","warn"); return; }
+  setMsg(adminStatus,"A ligar…","warn");
+  try{
+    await connectFirebase();
+    await loadSessions();
+    setMsg(adminStatus,"✅ Ligado ao Firestore.","ok");
+  }catch(e){ setMsg(adminStatus,"Erro: "+(e.message||e),"bad"); }
+});
+
+// ===== SESSIONS =====
+async function loadSessions(){
+  try{
+    const {docs}=await fsList(sessionsCol(),{pageSize:50,orderBy:"createdAt desc"});
+    sessionsCache=docs;
+    sessionSelect.innerHTML=docs.length
+      ? docs.map(d=>`<option value="${escHtml(d.id)}">${escHtml(d.label||d.id)}</option>`).join("")
+      : `<option value="">— sem sessões —</option>`;
+    // restore last session
+    if(currentSessionId){
+      const opt=[...sessionSelect.options].find(o=>o.value===currentSessionId);
+      if(opt) opt.selected=true;
+    }
+    setMsg(sessionStatus,`${docs.length} contagem(ns) encontrada(s).`,"ok");
+  }catch(e){
+    setMsg(sessionStatus,"Erro ao carregar sessões: "+(e.message||e),"bad");
+  }
+}
+
+btnOpenSession?.addEventListener("click", async()=>{
+  const id=sessionSelect.value;
+  if(!id){ setMsg(sessionStatus,"Seleciona uma contagem primeiro.","warn"); return; }
+  currentSessionId=id;
+  saveSessionId(id);
+  const label=sessionSelect.options[sessionSelect.selectedIndex]?.text||id;
+  activeSessionLabel.textContent=label;
+  setMsg(sessionStatus,`✅ Contagem "${label}" aberta.`,"ok");
+  lastProducts=[]; lastLogs=[];
+  if(_pollInterval){ clearInterval(_pollInterval); _pollInterval=null; }
+  await refreshProductStats(false);
+  _pollInterval=setInterval(()=>refreshAllProducts(),30000);
+});
+
+btnNewSession?.addEventListener("click", async()=>{
+  const label=prompt("Nome da nova contagem (ex: Abril 2026):");
+  if(!label) return;
+  const id=makeSessionId();
+  try{
+    await fsSet(`${sessionsCol()}/${id}`,{label:label.trim(),createdAt:new Date(),createdBy:_userEmail||""});
+    setMsg(sessionStatus,`✅ Contagem "${label}" criada.`,"ok");
+    await loadSessions();
+    // select the new one
+    const opt=[...sessionSelect.options].find(o=>o.value===id);
+    if(opt){ opt.selected=true; }
+  }catch(e){ setMsg(sessionStatus,"Erro: "+(e.message||e),"bad"); }
+});
+
+btnDeleteSession?.addEventListener("click", async()=>{
+  const id=sessionSelect.value;
+  if(!id){ setMsg(sessionStatus,"Seleciona uma contagem primeiro.","warn"); return; }
+  const label=sessionSelect.options[sessionSelect.selectedIndex]?.text||id;
+  if(!confirm(`Apagar a contagem "${label}"? Esta ação não pode ser revertida.`)) return;
+  setMsg(sessionStatus,"A apagar…","warn");
+  try{
+    // Firestore REST: delete document
+    const token=await getToken();
+    const r=await fetch(`${FS_BASE}/${sessionsCol()}/${encDocId(id)}`,{method:"DELETE",headers:{Authorization:"Bearer "+token}});
+    if(!r.ok&&r.status!==404){ const e=await r.json().catch(()=>{}); throw new Error(e?.error?.message||r.statusText); }
+    if(currentSessionId===id){ currentSessionId=null; saveSessionId(""); activeSessionLabel.textContent="—"; }
+    setMsg(sessionStatus,`✅ Contagem "${label}" apagada.`,"ok");
+    await loadSessions();
+  }catch(e){ setMsg(sessionStatus,"Erro: "+(e.message||e),"bad"); }
+});
+
+// ===== INIT PRODUCTS =====
+btnInit?.addEventListener("click", async()=>{
+  if(!currentSessionId){ setMsg(adminStatus,"Abre uma contagem primeiro.","warn"); return; }
+  if(!confirm(`Inicializar ${PRODUCTS.length} produtos na contagem atual? Produtos existentes não serão apagados.`)) return;
+  setMsg(adminStatus,"A inicializar…","warn");
+  let done=0, errors=0;
+  for(const p of PRODUCTS){
+    try{
+      // Only set if doesn't exist (use merge=true, only write fields not yet set)
+      const existing=await fsGet(`${productsCol()}/${encDocId(p)}`).catch(()=>null);
+      if(!existing){
+        await fsSet(`${productsCol()}/${encDocId(p)}`,{name:p,neu:0,prev:0,uploadNew:0,lastWho:""},false);
+      }
+      done++;
+    }catch(e){ errors++; }
+  }
+  setMsg(adminStatus,`✅ Inicializados: ${done}. Erros: ${errors}.`, errors?"warn":"ok");
+  await refreshAllProducts();
+});
+
+// ===== RESET NOVA CONTAGEM =====
+btnResetNew?.addEventListener("click", async()=>{
+  if(!currentSessionId){ setMsg(adminStatus,"Abre uma contagem primeiro.","warn"); return; }
+  if(!confirm("Resetar a contagem nova (neu=0) para todos os produtos? Os logs ficam intactos.")) return;
+  setMsg(adminStatus,"A resetar…","warn");
+  let done=0, errors=0;
+  for(const p of PRODUCTS){
+    try{
+      await fsSet(`${productsCol()}/${encDocId(p)}`,{neu:0,uploadNew:0});
+      done++;
+    }catch(e){ errors++; }
+  }
+  setMsg(adminStatus,`✅ Reset: ${done}. Erros: ${errors}.`, errors?"warn":"ok");
+  await refreshAllProducts();
+});
+
+btnImportPos?.addEventListener("click", ()=>importFromPosicoes());
+
+// ===== UPLOAD CONTAGEM ANTERIOR (CSV) =====
+prevFile?.addEventListener("change", async()=>{
+  const file=prevFile.files[0]; if(!file) return;
+  if(!currentSessionId){ setMsg(adminStatus,"Abre uma contagem primeiro.","warn"); prevFile.value=""; return; }
+  const text=await file.text();
+  const rows=parseCSV(text);
+  if(!rows.length){ setMsg(adminStatus,"CSV vazio ou inválido.","warn"); return; }
+  if(!confirm(`Carregar ${rows.length} linhas como contagem ANTERIOR (prev)? Isto substitui os valores anteriores.`)) { prevFile.value=""; return; }
+  setMsg(adminStatus,"A carregar contagem anterior…","warn");
+  let done=0, skip=0, errors=0;
+  for(const row of rows){
+    const rawName=(row[0]||"").trim(); const qty=parseQty(row[1]);
+    if(!rawName||isNaN(qty)){ skip++; continue; }
+    const name=canonicalName(rawName);
+    try{
+      await fsSet(`${productsCol()}/${encDocId(name)}`,{name,prev:qty});
+      done++;
+    }catch(e){ errors++; }
+  }
+  setMsg(adminStatus,`✅ Anterior: ${done} carregados. ${skip} ignorados. ${errors} erros.`, errors?"warn":"ok");
+  prevFile.value="";
+  await refreshAllProducts();
+});
+
+// ===== REFRESH ALL PRODUCTS =====
+async function refreshAllProducts(){
+  if(!connected||!currentSessionId) return;
+  try{
+    const {docs}=await fsList(productsCol(),{pageSize:500});
+    lastProducts=docs;
+    refreshProductStats(true);
+  }catch(e){ /* silencioso */ }
+}
+
+// ===== IMPORT CSV (nova contagem) =====
+newFile?.addEventListener("change", async()=>{
+  const file=newFile.files[0]; if(!file) return;
+  const text=await file.text();
+  _newFileCache={name:file.name, rows:parseCSV(text)};
+  setMsg(importStatus,`Ficheiro carregado: ${file.name} (${_newFileCache.rows.length} linhas). Clica "Importar agora".`,"warn");
+});
+
+btnClearNewFile?.addEventListener("click",()=>{ _newFileCache=null; newFile.value=""; setMsg(importStatus,"Ficheiro limpo.",""); });
+
+btnImportNew?.addEventListener("click", async()=>{
+  if(!_newFileCache){ setMsg(importStatus,"Seleciona um CSV primeiro.","warn"); return; }
+  if(!currentSessionId){ setMsg(importStatus,"Abre uma contagem no Admin primeiro.","warn"); return; }
+  const rows=_newFileCache.rows;
+  const addMode=chkImportAdd?.checked!==false;
+  setMsg(importStatus,`A importar ${rows.length} linhas…`,"warn");
+  let done=0, skip=0, errors=0;
+  for(const row of rows){
+    const rawName=(row[0]||"").trim(); const qty=parseQty(row[1]);
+    if(!rawName||isNaN(qty)){ skip++; continue; }
+    const name=canonicalName(rawName);
+    try{
+      if(addMode){
+        const existing=await fsGet(`${productsCol()}/${encDocId(name)}`).catch(()=>null);
+        const base=existing?Number(existing.neu||0):0;
+        await fsSet(`${productsCol()}/${encDocId(name)}`,{name,neu:base+qty,uploadNew:(existing?Number(existing.uploadNew||0):0)+qty});
+      } else {
+        await fsSet(`${productsCol()}/${encDocId(name)}`,{name,neu:qty,uploadNew:qty});
+      }
+      done++;
+    }catch(e){ errors++; }
+  }
+  setMsg(importStatus,`✅ ${done} importados. ${skip} ignorados. ${errors} erros.`, errors?"warn":"ok");
+  _newFileCache=null; newFile.value="";
+  await refreshAllProducts();
+});
+
+// ===== INTEGRAÇÃO POSIÇÕES WH =====
+// Mesmo algoritmo de productIdFromName usado no sistema de posições
+function posEncodeKey(str){
+  const u8 = new TextEncoder().encode(str);
+  let bin = ""; u8.forEach(b => bin += String.fromCharCode(b));
+  return btoa(bin).replace(/=+$/,"").replace(/\+/g,"-").replace(/\//g,"_");
+}
+function posNormalizeProductName(name){
+  return String(name||"").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ");
+}
+function posProductIdFromName(name){
+  const key = posNormalizeProductName(name);
+  return key ? posEncodeKey(key) : "";
+}
+
+const POS_PROJECT  = "posicoeswh";
+const POS_API_KEY  = "AIzaSyCFnPU0CZPtcMqPi_aq2XJVQodIgWZV4h0";
+const POS_AUTH_URL = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${POS_API_KEY}`;
+const POS_FS_BASE  = `https://firestore.googleapis.com/v1/projects/${POS_PROJECT}/databases/(default)/documents`;
+const POS_COL_STOCK = "stockItems";
+
+let _posToken = null, _posTokenExp = 0;
+
+// Login silencioso no posicoeswh com as mesmas credenciais
+async function getPosToken(){
+  if(_posToken && Date.now() < _posTokenExp) return _posToken;
+  const email = _userEmail;
+  // Se a password não está em memória (sessão restaurada por refresh token), pedir ao utilizador
+  let pass = _lastPass;
+  if(!pass){
+    pass = window.prompt(`Introduz a tua password para ligar ao Posições WH:\n(${email})`);
+    if(!pass) throw new Error("Password necessária para ligar ao Posições WH.");
+  }
+  const r = await fetch(POS_AUTH_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password:pass,returnSecureToken:true})});
+  const d = await r.json();
+  if(!r.ok) throw new Error(d?.error?.message || "Login no Posições WH falhou. Confirma que o email tem acesso (@admin.com ou @wh.com).");
+  _lastPass    = pass; // guardar para próximas chamadas
+  _posToken    = d.idToken;
+  _posTokenExp = Date.now() + (Number(d.expiresIn||3600)-60)*1000;
+  return _posToken;
+}
+
+// Vai buscar ao posicoeswh o total de paletes COMPLETAS
+async function fetchPosStock(token){
+  const url = `${POS_FS_BASE}:runQuery`;
+  const body = {structuredQuery:{
+    from:[{collectionId:POS_COL_STOCK}],
+    where:{fieldFilter:{field:{fieldPath:"slotType"},op:"EQUAL",value:{stringValue:"COMPLETA"}}},
+    limit:5000
+  }};
+  const r = await fetch(url,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify(body)});
+  if(!r.ok){ const e=await r.json().catch(()=>{}); throw new Error(e?.error?.message||r.statusText); }
+  const arr = await r.json();
+  const totals = new Map();
+  for(const item of arr){
+    if(!item.document) continue;
+    const f = item.document.fields || {};
+    const pid = f.productId?.stringValue || "";
+    const qty = Number(f.qtyUnits?.integerValue ?? f.qtyUnits?.doubleValue ?? 0);
+    if(!pid) continue;
+    totals.set(pid, (totals.get(pid)||0) + qty);
+  }
+  return totals;
+}
+
+// Importar stock de paletes completas do posicoeswh como ponto de partida
+async function importFromPosicoes(){
+  if(!currentSessionId){ setMsg(adminStatus,"Abre uma contagem primeiro.","warn"); return; }
+  if(!(_userEmail||"").endsWith("@admin.com")){ setMsg(adminStatus,"Apenas administradores (@admin.com) podem importar do Posições WH.","warn"); return; }
+  setMsg(adminStatus,"A autenticar no Posições WH…","warn");
+  try{
+    const token  = await getPosToken();
+    setMsg(adminStatus,"A ir buscar stock de paletes completas…","warn");
+    const totals = await fetchPosStock(token);
+    setMsg(adminStatus,`Stock recebido (${totals.size} entradas). A gravar…`,"warn");
+    let found=0, zero=0, errors=0;
+    for(const p of PRODUCTS){
+      const pid    = posProductIdFromName(p);
+      const paletes = totals.get(pid) || 0;
+      try{
+        await fsSet(`${productsCol()}/${encDocId(p)}`,{name:p, uploadNew:paletes, neu:paletes});
+        if(paletes > 0) found++; else zero++;
+      }catch(e){ errors++; }
+    }
+    setMsg(adminStatus,`✅ Posições WH importado: ${found} com stock, ${zero} a zero. ${errors} erros.`, errors?"warn":"ok");
+    await refreshAllProducts();
+  }catch(e){
+    setMsg(adminStatus,"Erro ao ligar ao Posições WH: "+(e.message||e),"bad");
+  }
+}
 
 // ===== RULES =====
 const RULES=`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    function signedIn() { return request.auth != null; }\n    match /{document=**} { allow read, write: if false; }\n    match /{ns}_sessions/{sessionId} {\n      allow read: if signedIn();\n      allow create, update: if signedIn();\n      allow delete: if false;\n      match /products/{productId} {\n        allow read: if signedIn();\n        allow create, update: if signedIn();\n        allow delete: if false;\n      }\n      match /logs/{logId} {\n        allow read: if signedIn();\n        allow create: if signedIn();\n        allow update, delete: if false;\n      }\n    }\n  }\n}`;
